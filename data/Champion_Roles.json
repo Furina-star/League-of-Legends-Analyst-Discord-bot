@@ -1,0 +1,43 @@
+{
+  "PURE_ADCS": [
+    "Aphelios", "Caitlyn", "Corki", "Draven", "Jhin", "Jinx", "Kalista",
+    "KogMaw", "Lucian", "Mel", "MissFortune", "Nilah", "Samira", "Sivir",
+    "Tristana", "Twitch", "Xayah", "Yunara", "Zeri"
+  ],
+  "PURE_SUPPORTS": [
+    "Alistar", "Bard", "Blitzcrank", "Braum", "Janna", "Leona", "Milio",
+    "Nami", "Nautilus", "Pyke", "Rakan", "Rell", "Renata", "Sona", "Soraka",
+    "Taric", "Thresh", "Yuumi"
+  ],
+  "FLEX_BOTS": [
+    "Ashe", "AurelionSol", "Brand", "Kaisa", "Karthus", "Lux", "Senna", "Vayne",
+    "Seraphine", "Smolder", "Swain", "Varus", "Veigar", "VelKoz", "Yasuo", "Ziggs"
+  ],
+  "FLEX_SUPPORTS": [
+    "Brand", "Camille", "Heimerdinger", "Karma", "Lulu", "Lux", "Maokai",
+    "Morgana", "Neeko", "Pantheon", "Poppy", "Senna", "Shaco", "TahmKench",
+    "VelKoz", "Xerath", "Zilean", "Zyra"
+  ],
+  "KNOWN_MIDS": [
+    "Ahri", "Akali", "Akshan", "Anivia", "Annie", "AurelionSol", "Aurora",
+    "Brand", "Cassiopeia", "ChoGath", "Diana", "Ekko", "Fizz", "Hwei",
+    "Kassadin", "Katarina", "Kayle", "KogMaw", "Lissandra", "Lux", "Malphite",
+    "Nasus", "Pantheon", "Sion", "Swain", "Syndra", "TwistedFate", "Veigar",
+    "VelKoz", "Vex", "Viktor", "Vladimir", "Xerath", "Yasuo", "Zoe"
+  ],
+  "KNOWN_TOPS": [
+    "Aatrox", "Anivia", "Aurora", "Camille", "Cassiopeia", "ChoGath", "Darius",
+    "DrMundo", "Fiora", "Gangplank", "Garen", "Gragas", "Gwen", "Heimerdinger",
+    "Illaoi", "Irelia", "Kayle", "Kennen", "Kled", "Malphite", "MasterYi", "Olaf",
+    "Ornn", "Pantheon", "Quinn", "Sett", "Shen", "Singed", "Sion", "Sylas",
+    "TahmKench", "Teemo", "Tryndamere", "Varus", "Vayne", "Vladimir", "Wukong",
+    "Yasuo", "Zac"
+  ],
+  "KNOWN_JUNGLES": [
+    "Aatrox", "Amumu", "BelVeth", "Briar", "Darius", "DrMundo", "Ekko", "Elise",
+    "Evelynn", "Fiddlesticks", "Fizz", "Gragas", "Gwen", "Ivern", "JarvanIV",
+    "Karthus", "LeeSin", "MasterYi", "Naafiri", "Nasus", "Nocturne", "Nunu",
+    "Poppy", "Rammus", "RekSai", "Sejuani", "Shaco", "Shen", "Skarner", "Taliyah",
+    "Talon", "XinZhao", "Zaahen", "Zac", "Zyra"
+  ]
+}

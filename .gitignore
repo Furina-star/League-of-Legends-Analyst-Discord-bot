@@ -1,0 +1,27 @@
+# Secret Files
+.env
+
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Python Code
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Os Generated Files
+.DS_Store
+Thumbs.db
+
+# ML and Data files
+# If its over 100mb yeah i can add it to gitignore
+# data/*.csv
+# models/*.pth
