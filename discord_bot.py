@@ -21,7 +21,7 @@ def get_champion_mapping():
 
         return id_to_name
     except Exception as e:
-        print(f"⚠️ DDragon Error: {e}")
+        print(f"⚠️ Data Dragon Error: {e}")
         return {}  # Return an empty dictionary if Riot's servers are down
 
 # Initiate Roles from Champion_Roles.json as a function
@@ -52,7 +52,7 @@ bot = commands.Bot(command_prefix=custom_prefix, case_insensitive=True, intents=
 
 @bot.event
 async def on_ready():
-    # Remove the default help since we uses a custom one
+    # Remove the default help since it uses a custom one
     bot.remove_command('help')
 
     print(f'Logged in as {bot.user.name}')

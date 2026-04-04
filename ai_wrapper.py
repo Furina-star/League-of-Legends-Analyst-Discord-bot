@@ -10,15 +10,15 @@ class Model(nn.Module):
         self.embedding = nn.Embedding(num_embeddings=num_champions, embedding_dim=16)
 
         self.net = nn.Sequential(
-            nn.Linear(320, 128),
+            nn.Linear(160, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
 
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
 
             nn.Linear(64, 1),
             nn.Sigmoid()
@@ -49,13 +49,12 @@ class LeagueAI:
     # This function takes in a draft dictionary, preprocesses it, and returns the predicted win probability for the blue team
     def predict_match(self, draft_dict):
         correct_order = [
-            'blueADCChamp', 'blueJungleChamp', 'blueMiddleChamp', 'blueSupportChamp', 'blueTopChamp',
-            'redADCChamp', 'redJungleChamp', 'redMiddleChamp', 'redSupportChamp', 'redTopChamp',
-            'blueBan1', 'blueBan2', 'blueBan3', 'blueBan4', 'blueBan5',
-            'redBan1', 'redBan2', 'redBan3', 'redBan4', 'redBan5'
+            'blueTopChamp', 'blueJungleChamp', 'blueMiddleChamp', 'blueADCChamp', 'blueSupportChamp',
+            'redTopChamp', 'redJungleChamp', 'redMiddleChamp', 'redADCChamp', 'redSupportChamp'
         ]
 
         df_input = pd.DataFrame([draft_dict])[correct_order]
+
         for col in df_input.columns:
             df_input[col] = df_input[col].apply(lambda x: x if x in self.le.classes_ else 'Unknown')
             df_input[col] = self.le.transform(df_input[col].astype(str))
@@ -63,8 +62,9 @@ class LeagueAI:
         x_tensor = torch.tensor(df_input.values, dtype=torch.long)
 
         with torch.no_grad():
-            red_win_prob = self.model(x_tensor).item()
+            prediction = self.model(x_tensor).item()
 
-        blue_win_prob = 1.0 - red_win_prob
+        blue_win_prob = prediction
+        red_win_prob = 1.0 - blue_win_prob
 
         return blue_win_prob, red_win_prob

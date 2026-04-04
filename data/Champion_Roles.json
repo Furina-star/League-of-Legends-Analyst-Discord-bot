@@ -11,25 +11,25 @@
   ],
   "FLEX_BOTS": [
     "Ashe", "AurelionSol", "Brand", "Kaisa", "Karthus", "Lux", "Senna", "Vayne",
-    "Seraphine", "Smolder", "Swain", "Varus", "Veigar", "VelKoz", "Yasuo", "Ziggs"
+     "Smolder", "Swain", "Varus", "Veigar", "VelKoz", "Yasuo", "Ziggs"
   ],
   "FLEX_SUPPORTS": [
     "Brand", "Camille", "Heimerdinger", "Karma", "Lulu", "Lux", "Maokai",
-    "Morgana", "Neeko", "Pantheon", "Poppy", "Senna", "Shaco", "TahmKench",
+    "Morgana", "Neeko", "Pantheon", "Poppy", "Senna", "Seraphine", "Shaco", "TahmKench",
     "VelKoz", "Xerath", "Zilean", "Zyra"
   ],
   "KNOWN_MIDS": [
-    "Ahri", "Akali", "Akshan", "Anivia", "Annie", "AurelionSol", "Aurora",
+    "Ahri", "AurelionSol", "Akali", "Akshan", "Anivia", "Annie", "AurelionSol", "Aurora",
     "Brand", "Cassiopeia", "ChoGath", "Diana", "Ekko", "Fizz", "Hwei",
     "Kassadin", "Katarina", "Kayle", "KogMaw", "Lissandra", "Lux", "Malphite",
-    "Nasus", "Pantheon", "Sion", "Swain", "Syndra", "TwistedFate", "Veigar",
+    "Talon", "Pantheon", "Sion", "Swain", "Syndra", "TwistedFate", "Veigar",
     "VelKoz", "Vex", "Viktor", "Vladimir", "Xerath", "Yasuo", "Zoe"
   ],
   "KNOWN_TOPS": [
     "Aatrox", "Anivia", "Aurora", "Camille", "Cassiopeia", "ChoGath", "Darius",
     "DrMundo", "Fiora", "Gangplank", "Garen", "Gragas", "Gwen", "Heimerdinger",
-    "Illaoi", "Irelia", "Kayle", "Kennen", "Kled", "Malphite", "MasterYi", "Olaf",
-    "Ornn", "Pantheon", "Quinn", "Sett", "Shen", "Singed", "Sion", "Sylas",
+    "Illaoi", "Irelia", "Kayle", "Kennen", "Kled", "Malphite", "Mordekaiser", "MasterYi", "Olaf",
+    "Ornn", "Pantheon", "Quinn", "Sett", "Shen", "Singed", "Sion", "Sylas", "Nasus",
     "TahmKench", "Teemo", "Tryndamere", "Varus", "Vayne", "Vladimir", "Wukong",
     "Yasuo", "Zac"
   ],

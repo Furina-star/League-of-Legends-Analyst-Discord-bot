@@ -16,58 +16,41 @@ def parse_riot_id(full_riot_id: str):
     return game_name.strip(), tag_line.strip()
 
 # Initiate Role Sorter as a function.
+def _assign_role_from_pool(roles, unassigned, role_idx, db_key, meta_db):
+    if roles[role_idx] is not None:
+        return
+    pool = meta_db.get(db_key, set())
+    for i, champ in enumerate(unassigned):
+        if champ in pool:
+            roles[role_idx] = champ
+            unassigned.pop(i)
+            return
+
 # Sort Team Composition by role, not by pick
 def sort_team_roles(team_participants, champ_dict, meta_db):
-    roles = [None, None, None, None, None]  # [Top, Jungle, Mid, ADC, Support]
-    pool = []
+    roles = [None] * 5
+    unassigned = []
 
-    # The Jungler
     for player in team_participants:
         champ_name = champ_dict.get(str(player['championId']), "Unknown")
-        spell1 = player.get('spell1Id')
-        spell2 = player.get('spell2Id')
-
-        if (spell1 == 11 or spell2 == 11) and roles[1] is None:
+        if roles[1] is None and 11 in (player.get('spell1Id'), player.get('spell2Id')):
             roles[1] = champ_name
         else:
-            pool.append(champ_name)
+            unassigned.append(champ_name)
 
-    # Pure Bots
-    rem_pass2 = []
-    for champ in pool:
-        if champ in meta_db.get("PURE_ADCS", []) and roles[3] is None:
-            roles[3] = champ
-        elif champ in meta_db.get("PURE_SUPPORTS", []) and roles[4] is None:
-            roles[4] = champ
-        else:
-            rem_pass2.append(champ)
+    # Use the new external helper instead of a nested function
+    _assign_role_from_pool(roles, unassigned, 3, "PURE_ADCS", meta_db)
+    _assign_role_from_pool(roles, unassigned, 4, "PURE_SUPPORTS", meta_db)
+    _assign_role_from_pool(roles, unassigned, 3, "FLEX_BOTS", meta_db)
+    _assign_role_from_pool(roles, unassigned, 4, "FLEX_SUPPORTS", meta_db)
+    _assign_role_from_pool(roles, unassigned, 2, "KNOWN_MIDS", meta_db)
+    _assign_role_from_pool(roles, unassigned, 0, "KNOWN_TOPS", meta_db)
 
-    # Flex Bots
-    rem_pass3 = []
-    for champ in rem_pass2:
-        if champ in meta_db.get("FLEX_BOTS", []) and roles[3] is None:
-            roles[3] = champ
-        elif champ in meta_db.get("FLEX_SUPPORTS", []) and roles[4] is None:
-            roles[4] = champ
-        else:
-            rem_pass3.append(champ)
-
-    # Solo Lanes
-    rem_pass4 = []
-    for champ in rem_pass3:
-        if champ in meta_db.get("KNOWN_MIDS", []) and roles[2] is None:
-            roles[2] = champ
-        elif champ in meta_db.get("KNOWN_TOPS", []) and roles[0] is None:
-            roles[0] = champ
-        else:
-            rem_pass4.append(champ)
-
-    # Leftover Dump
     for i in range(5):
-        if roles[i] is None and rem_pass4:
-            roles[i] = rem_pass4.pop(0)
+        if roles[i] is None and unassigned:
+            roles[i] = unassigned.pop(0)
 
-    if len(rem_pass4) > 0 or None in roles:
+    if None in roles or unassigned:
         return [champ_dict.get(str(p['championId']), "Unknown") for p in team_participants]
 
     return roles
@@ -81,6 +64,27 @@ class DraftCommands(commands.Cog):
         self.ai = ai_system
         self.meta_db = meta_db
         self.champ_dict = champ_dict
+
+    # Initiate the ban logic as a function
+    def _extract_bans(self, match_data):
+        blue_bans, red_bans = ["None"] * 5, ["None"] * 5
+        b_count, r_count = 0, 0
+        for ban in match_data.get('bannedChampions', []):
+            c_name = self.champ_dict.get(str(ban['championId']), "None")
+            if ban['teamId'] == 100 and b_count < 5:
+                blue_bans[b_count] = c_name
+                b_count += 1
+            elif ban['teamId'] == 200 and r_count < 5:
+                red_bans[r_count] = c_name
+                r_count += 1
+        return blue_bans, red_bans
+
+    # Initiate the checking logic as a function
+    def _check_if_bot(self, champ_name, raw_team):
+        for p in raw_team:
+            if self.champ_dict.get(str(p['championId']), "Unknown") == champ_name:
+                return p.get('bot', False) or not p.get('puuid')
+        return False
 
     @commands.command()
     async def ping(self, ctx):
@@ -135,31 +139,12 @@ class DraftCommands(commands.Cog):
                 await ctx.send("⚠️ **Not enough players!** I only calculate full 5v5 matches.")
                 return
 
-            # Check if there's a ducking bot everywhere like why???
-            def check_if_bot(champ_name, raw_team):
-                for p in raw_team:
-                    if self.champ_dict.get(str(p['championId']), "Unknown") == champ_name:
-                        return p.get('bot', False) or not p.get('puuid')
-                return False
+            # Get _check_if_bot function
+            blue_display = [f"🤖 {c}" if self._check_if_bot(c, raw_blue_team) else c for c in blue_picks]
+            red_display = [f"🤖 {c}" if self._check_if_bot(c, raw_red_team) else c for c in red_picks]
 
-            blue_display = [f"🤖 {c}" if check_if_bot(c, raw_blue_team) else c for c in blue_picks]
-            red_display = [f"🤖 {c}" if check_if_bot(c, raw_red_team) else c for c in red_picks]
-
-            # This code snippet just basically re adjust the indexes especially when doing blind picks (SwiftPlay).
-            blue_bans, red_bans = ["None"] * 5, ["None"] * 5
-            blue_ban_count, red_ban_count = 0, 0
-
-            # .get() prevents a crash if the game is Blind Pick (SwiftPlay) and has NO bans, it will just return an empty list and skip the loop.
-            for ban in match_data.get('bannedChampions', []):
-                # Default to "None" if the ID is missing or -1
-                c_name = self.champ_dict.get(str(ban['championId']), "None")
-
-                if ban['teamId'] == 100 and blue_ban_count < 5:
-                    blue_bans[blue_ban_count] = c_name
-                    blue_ban_count += 1
-                elif ban['teamId'] == 200 and red_ban_count < 5:
-                    red_bans[red_ban_count] = c_name
-                    red_ban_count += 1
+            # Get _extract_bans function
+            blue_bans, red_bans = self._extract_bans(match_data)
 
             # Basically Get the Champion picks and then set them in order.
             draft_dict = {
@@ -173,18 +158,15 @@ class DraftCommands(commands.Cog):
                 'redBan5': red_bans[4]
             }
 
-            try:
-                blue_win_prob, red_win_prob = self.ai.predict_match(draft_dict)
-            except Exception as e:
-                await ctx.send(f"⚠️ AI Calculation Error: {str(e)}")
-                return
+            # Calculates the probability
+            blue_win_prob, red_win_prob = self.ai.predict_match(draft_dict)
 
             # Send the results to the discord, design doesn't matter at least lol.
             embed = discord.Embed(title="🔴 LIVE MATCH PREDICTION", color=discord.Color.blue())
             embed.add_field(name="🟦 Blue Team Win Chance", value=f"**{blue_win_prob * 100:.2f}%**", inline=True)
             embed.add_field(name="🟥 Red Team Win Chance", value=f"**{red_win_prob * 100:.2f}%**", inline=True)
 
-            # Let's show the drafted champs just to make sure.
+            # Show the drafted champs just to make sure.
             embed.add_field(name="Blue Draft", value=", ".join(blue_display), inline=False)
             embed.add_field(name="Red Draft", value=", ".join(red_display), inline=False)
 
@@ -192,6 +174,27 @@ class DraftCommands(commands.Cog):
 
         except Exception as e:
             await ctx.send(f"⚠️ An unexpected error occurred: {str(e)}")
+
+    # Initiate Dossier Builder as a function
+    async def _build_enemy_dossier(self, match_data, enemy_team_id, embed):
+        for p in match_data['participants']:
+            if p['teamId'] == enemy_team_id:
+                e_puuid = p.get('puuid')
+                riot_id = p.get('riotIdGlobalName') or p.get('summonerName') or 'Unknown Player'
+                c_id = p['championId']
+                c_name = self.champ_dict.get(str(c_id), 'Unknown')
+
+                if p.get('bot', False) or not e_puuid:
+                    embed.add_field(name=f"🤖 {c_name} (Bot)", value="No data available.", inline=False)
+                    continue
+
+                mastery = await self.riot.get_champion_mastery(e_puuid, c_id)
+                sum_id = p.get('summonerId') or await self.riot.get_summoner_id(e_puuid)
+                rank = await self.riot.get_summoner_rank(sum_id) if sum_id else "Unranked"
+
+                embed.add_field(name=f"⚔️ {c_name} - {riot_id}",
+                                value=f"**Rank:** {rank}\n**Mastery:** {mastery:,} pts", inline=False)
+        return embed
 
     # This part checks what type of bs the enemy team is running
     @commands.command()
@@ -230,28 +233,8 @@ class DraftCommands(commands.Cog):
             # Building the Discord Embed
             embed = discord.Embed(title="🕵️ Enemy Team Dossier", description=f"Scouting for **{game_name}**", color=discord.Color.dark_purple())
 
-            # Analyze every enemy and their bs
-            for p in match_data['participants']:
-                if p['teamId'] == enemy_team_id:
-                    e_puuid = p.get('puuid')
-                    riot_id = p.get('riotIdGlobalName', 'Unknown Player')
-                    c_id = p['championId']
-                    c_name = self.champ_dict.get(str(c_id), 'Unknown')
-
-                    if p.get('bot', False) or not e_puuid:
-                        embed.add_field(name=f"🤖 {c_name} (Bot)", value="No data available.", inline=False)
-                        continue
-
-                    # This call out get_champion_mastery function from RiotAPIClient Class in riot_api.py.
-                    mastery = await self.riot.get_champion_mastery(e_puuid, c_id)
-
-                    # This call out summoner ID function from RiotAPIClient Class in riot_api.py.
-                    sum_id = p.get('summonerId') or await self.riot.get_summoner_id(e_puuid)
-
-                    # This call out get_summoner_rank function from RiotAPIClient Class in riot_api.py.
-                    rank = await self.riot.get_summoner_rank(sum_id) if sum_id else "Unranked"
-
-                    embed.add_field(name=f"⚔️ {c_name} - {riot_id}", value=f"**Rank:** {rank}\n**Mastery:** {mastery:,} pts", inline=False)
+            # Get _build_enemy_dossier
+            embed = await self._build_enemy_dossier(match_data, enemy_team_id, embed)
 
             await ctx.send(embed=embed)
 
