@@ -165,7 +165,7 @@ class DraftCommands(commands.Cog):
             }
 
             # Calculates the probability
-            base_blue_prob, _ = self.ai.predict_match(draft_dict)
+            base_blue_prob,_, blue_syn, red_syn = self.ai.predict_match(draft_dict)
 
             blue_sum_ids = [p['summonerId'] for p in raw_blue_team if p.get('summonerId')]
             red_sum_ids = [p['summonerId'] for p in raw_red_team if p.get('summonerId')]
@@ -191,13 +191,15 @@ class DraftCommands(commands.Cog):
             embed = discord.Embed(title="🔴 LIVE MATCH PREDICTION", color=discord.Color.blue())
             blue_text = (
                     f"**Win Chance: {final_blue_prob * 100:.1f}%**\n"
-                    f"*(Avg WR: {avg_blue_wr:.1f}%)*\n\n"
+                    f"*(Avg WR: {avg_blue_wr:.1f}%)*\n"
+                    f"*(Synergy: {blue_syn * 100:+.1f})*\n\n"
                     f"**Draft:**\n" + "\n".join(blue_display)
             )
 
             red_text = (
                     f"**Win Chance: {final_red_prob * 100:.1f}%**\n"
-                    f"*(Avg WR: {avg_red_wr:.1f}%)*\n\n"
+                    f"*(Avg WR: {avg_red_wr:.1f}%)*\n"
+                    f"*(Synergy: {red_syn * 100:+.1f})*\n\n"
                     f"**Draft:**\n" + "\n".join(red_display)
             )
 
