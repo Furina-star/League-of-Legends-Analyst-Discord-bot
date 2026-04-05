@@ -44,7 +44,7 @@ RIOT_API_KEY=your_riot_api_key_here
 
 ### 5. Run the Bot
 \`\`\`bash
-python main.py
+discord_bot.py
 \`\`\`
 
 ## 📖 Command List
