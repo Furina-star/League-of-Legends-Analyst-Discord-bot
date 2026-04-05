@@ -1,5 +1,7 @@
 import discord
 from discord.ext import commands
+import asyncio
+import re
 
 # Initiate Riot ID Parser as a function.
 # this is to prevent the user from formatting it wrong, for example they might type "Hide on bush KR1" instead of "Hide on bush#KR1".
@@ -14,6 +16,17 @@ def parse_riot_id(full_riot_id: str):
             return None, None # Returns None if they formatted it completely wrong
 
     return game_name.strip(), tag_line.strip()
+
+# Initiate Winrate as a function
+def parse_winrate(rank_string):
+    if not rank_string or "Unranked" in rank_string:
+        return 50.0 # If unranked or missing, assume an average 50% player
+
+    # Searches for numbers directly followed by "% WR"
+    match = re.search(r"(\d+)%\sWR", rank_string)
+    if match:
+        return float(match.group(1))
+    return 50.0
 
 # Initiate Role Sorter as a function.
 def _assign_role_from_pool(roles, unassigned, role_idx, db_key, meta_db):
@@ -143,32 +156,53 @@ class DraftCommands(commands.Cog):
             blue_display = [f"🤖 {c}" if self._check_if_bot(c, raw_blue_team) else c for c in blue_picks]
             red_display = [f"🤖 {c}" if self._check_if_bot(c, raw_red_team) else c for c in red_picks]
 
-            # Get _extract_bans function
-            blue_bans, red_bans = self._extract_bans(match_data)
-
             # Basically Get the Champion picks and then set them in order.
             draft_dict = {
                 'blueTopChamp': blue_picks[0], 'blueJungleChamp': blue_picks[1], 'blueMiddleChamp': blue_picks[2],
                 'blueADCChamp': blue_picks[3], 'blueSupportChamp': blue_picks[4],
-                'blueBan1': blue_bans[0], 'blueBan2': blue_bans[1], 'blueBan3': blue_bans[2], 'blueBan4': blue_bans[3],
-                'blueBan5': blue_bans[4],
                 'redTopChamp': red_picks[0], 'redJungleChamp': red_picks[1], 'redMiddleChamp': red_picks[2],
-                'redADCChamp': red_picks[3], 'redSupportChamp': red_picks[4],
-                'redBan1': red_bans[0], 'redBan2': red_bans[1], 'redBan3': red_bans[2], 'redBan4': red_bans[3],
-                'redBan5': red_bans[4]
+                'redADCChamp': red_picks[3], 'redSupportChamp': red_picks[4]
             }
 
             # Calculates the probability
-            blue_win_prob, red_win_prob = self.ai.predict_match(draft_dict)
+            base_blue_prob, _ = self.ai.predict_match(draft_dict)
+
+            blue_sum_ids = [p['summonerId'] for p in raw_blue_team if p.get('summonerId')]
+            red_sum_ids = [p['summonerId'] for p in raw_red_team if p.get('summonerId')]
+
+            # Create the 10 concurrent tasks
+            blue_tasks = [self.riot.get_summoner_rank(sid) for sid in blue_sum_ids]
+            red_tasks = [self.riot.get_summoner_rank(sid) for sid in red_sum_ids]
+
+            # This prevents the 15-second hang
+            blue_results = await asyncio.gather(*blue_tasks)
+            red_results = await asyncio.gather(*red_tasks)
+
+            # The hybrid algorithm
+            blue_winrates = [parse_winrate(res) for res in blue_results]
+            red_winrates = [parse_winrate(res) for res in red_results]
+
+            avg_blue_wr = sum(blue_winrates) / len(blue_winrates) if blue_winrates else 50.0
+            avg_red_wr = sum(red_winrates) / len(red_winrates) if red_winrates else 50.0
+
+            final_blue_prob, final_red_prob = self.ai.apply_hybrid_algorithm(base_blue_prob, blue_winrates,red_winrates)
 
             # Send the results to the discord, design doesn't matter at least lol.
             embed = discord.Embed(title="🔴 LIVE MATCH PREDICTION", color=discord.Color.blue())
-            embed.add_field(name="🟦 Blue Team Win Chance", value=f"**{blue_win_prob * 100:.2f}%**", inline=True)
-            embed.add_field(name="🟥 Red Team Win Chance", value=f"**{red_win_prob * 100:.2f}%**", inline=True)
+            blue_text = (
+                    f"**Win Chance: {final_blue_prob * 100:.1f}%**\n"
+                    f"*(Avg WR: {avg_blue_wr:.1f}%)*\n\n"
+                    f"**Draft:**\n" + "\n".join(blue_display)
+            )
 
-            # Show the drafted champs just to make sure.
-            embed.add_field(name="Blue Draft", value=", ".join(blue_display), inline=False)
-            embed.add_field(name="Red Draft", value=", ".join(red_display), inline=False)
+            red_text = (
+                    f"**Win Chance: {final_red_prob * 100:.1f}%**\n"
+                    f"*(Avg WR: {avg_red_wr:.1f}%)*\n\n"
+                    f"**Draft:**\n" + "\n".join(red_display)
+            )
+
+            embed.add_field(name="🟦 Blue Team", value=blue_text, inline=True)
+            embed.add_field(name="🟥 Red Team", value=red_text, inline=True)
 
             await ctx.send(embed=embed)
 

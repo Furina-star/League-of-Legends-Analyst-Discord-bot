@@ -8,6 +8,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import joblib
 import matplotlib.pyplot as plt
 import requests
+from ai_wrapper import Model
 
 # Load your CUSTOM Mined Data
 df = pd.read_csv("data/ranked_drafts.csv")
@@ -37,7 +38,7 @@ for col in text_cols:
 joblib.dump(le, "models/label_encoder.pkl")
 num_unique_champions = len(le.classes_)
 
-x = df.drop(columns=['blueWin'])
+x = df.drop(columns=['blueWin', 'matchId'])
 y = df['blueWin']
 
 # Split
@@ -52,49 +53,26 @@ y_test_t = torch.tensor(y_test.values, dtype=torch.float32).unsqueeze(1)
 
 # Create DataLoaders for both Training and Validation
 train_dataset = TensorDataset(x_train_t, y_train_t)
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, drop_last=True)
+train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, drop_last=True)
 
 test_dataset = TensorDataset(x_test_t, y_test_t)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-
-
-# Build Model
-class Model(nn.Module):
-    def __init__(self, input_size):
-        super().__init__()
-        self.embedding = nn.Embedding(num_embeddings=num_unique_champions, embedding_dim=16)
-
-        self.net = nn.Sequential(
-            nn.Linear(160, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-
-            nn.Linear(64, 1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        embedded = self.embedding(x)
-        flattened = embedded.view(x.size(0), -1)
-        return self.net(flattened)
-
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
 
 # Start Training
 model = Model(num_unique_champions)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 criterion = nn.BCELoss()
 
 print(f"Number of input columns: {x.shape[1]}")
 print(f"Total Unique Champions found: {num_unique_champions}")
 print(f"Training on {len(x_train)} matches, Validating on {len(x_test)} matches...\n")
 
-num_epochs = 20
+# Tracker for epochs
+best_val_loss = float('inf')
+patience = 5
+patience_counter = 0
+
+num_epochs = 40
 for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
@@ -107,7 +85,6 @@ for epoch in range(num_epochs):
 
     avg_train_loss = running_loss / len(train_loader)
 
-    # Catch Overfitting
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
@@ -117,13 +94,19 @@ for epoch in range(num_epochs):
 
     avg_val_loss = val_loss / len(test_loader)
 
-    if (epoch + 1) % 5 == 0 or epoch == 0:
-        print(f"Epoch [{epoch + 1}/{num_epochs}]  |  Train Loss: {avg_train_loss:.4f}  |  Val Loss: {avg_val_loss:.4f}")
+    if avg_val_loss < best_val_loss:
+        best_val_loss = avg_val_loss
+        patience_counter = 0
 
-# Save the Model
-torch.save({'model_state_dict': model.state_dict(), 'num_champs': num_unique_champions},
-           "models/Lol_draft_predictor.pth")
-print("\nModel saved successfully with 10 inputs!")
+        torch.save({'model_state_dict': model.state_dict(), 'num_champs': num_unique_champions},"models/Lol_draft_predictor.pth")
+        print(f"Epoch [{epoch + 1}/{num_epochs}]  |  Train Loss: {avg_train_loss:.4f}  |  Val Loss: {avg_val_loss:.4f} ⭐ (New Best!)")
+    else:
+        patience_counter += 1
+        print(f"Epoch [{epoch + 1}/{num_epochs}]  |  Train Loss: {avg_train_loss:.4f}  |  Val Loss: {avg_val_loss:.4f}  |  Strikes: {patience_counter}/{patience}")
+
+        if patience_counter >= patience:
+            print(f"\nEarly stopping triggered! AI peaked at Epoch {epoch + 1 - patience}.")
+            break
 
 # Evaluation & Confusion Matrix
 model.eval()

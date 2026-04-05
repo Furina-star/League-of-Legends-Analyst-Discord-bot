@@ -3,22 +3,27 @@ import torch.nn as nn
 import joblib
 import pandas as pd
 
-# Define the Model Architecture (same as in train_model.py) for discord_bot.py
+# Define the Model Architecture
 class Model(nn.Module):
     def __init__(self, num_champions):
         super().__init__()
         self.embedding = nn.Embedding(num_embeddings=num_champions, embedding_dim=16)
 
         self.net = nn.Sequential(
-            nn.Linear(160, 128),
+            nn.Linear(160, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+
+            nn.Linear(256, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(0.4),
+            nn.Dropout(0.25),
 
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.4),
+            nn.Dropout(0.25),
 
             nn.Linear(64, 1),
             nn.Sigmoid()
@@ -68,3 +73,23 @@ class LeagueAI:
         red_win_prob = 1.0 - blue_win_prob
 
         return blue_win_prob, red_win_prob
+
+    def apply_hybrid_algorithm(self, base_blue_prob, blue_winrates, red_winrates):
+        # Calculate the average team winrate
+        avg_blue = sum(blue_winrates) / len(blue_winrates) if blue_winrates else 50.0
+        avg_red = sum(red_winrates) / len(red_winrates) if red_winrates else 50.0
+
+        # Find the skill gap
+        winrate_gap = avg_blue - avg_red
+
+        # Don't want player winrates to completely override the AI.
+        skill_weight = 0.5
+        modifier = (winrate_gap * skill_weight) / 100.0
+
+        final_blue_prob = base_blue_prob + modifier
+
+        # Clamp the results so we never get mathematically impossible numbers like 105%
+        final_blue_prob = max(0.01, min(0.99, final_blue_prob))
+        final_red_prob = 1.0 - final_blue_prob
+
+        return final_blue_prob, final_red_prob

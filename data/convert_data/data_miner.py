@@ -11,7 +11,7 @@ RIOT_KEY = os.getenv('RIOT_API_KEY')
 REGION = "asia"  # Change region
 PLATFORM = "sg2"  # Change platform (e.g., "na1", "euw1", "kr1", etc.)
 TARGET_MATCHES = 50000  # How many games to mine
-CSV_FILENAME = "../ranked_drafts.csv"
+CSV_FILENAME = "data/ranked_drafts.csv"
 
 
 async def mine_data(seed_game_name, seed_tag_line):
@@ -23,17 +23,32 @@ async def mine_data(seed_game_name, seed_tag_line):
     matches_collected = 0
 
     # Ensure the data folder exists
-    os.makedirs("..", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
 
     # Create CSV Headers if file doesn't exist
-    if not os.path.exists(CSV_FILENAME):
+    if os.path.exists(CSV_FILENAME):
+        print ("Found Existing CSV File! Loading Save State...")
+        with open(CSV_FILENAME, mode='r', newline='') as file:
+            reader = csv.reader(file)
+            next(reader, None)
+            for row in reader:
+                if row:
+                    visited_matches.add(row[0])
+                    matches_collected += 1
+        print(f"Resuming from {matches_collected} matches...")
+    # Create CSV Headers if file doesn't exist
+    else:
         with open(CSV_FILENAME, mode='w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow([
-                "blueTop", "blueJungle", "blueMid", "blueADC", "blueSupport",
+                "matchId", "blueTop", "blueJungle", "blueMid", "blueADC", "blueSupport",
                 "redTop", "redJungle", "redMid", "redADC", "redSupport",
-                "blueWin"  # 1 if Blue won, 0 if Red won
+                "blueWin"
             ])
+
+    if matches_collected >= TARGET_MATCHES:
+        print("🎯 Target already reached! No mining needed.")
+        return
 
     # Get the Seed PUUID
     print(f"🌱 Planting seed: {seed_game_name}#{seed_tag_line}")
@@ -96,6 +111,7 @@ async def mine_data(seed_game_name, seed_tag_line):
             # If the draft dictionary is fully populated (all 10 roles exist)
             if len(draft["blue"]) == 5 and len(draft["red"]) == 5:
                 row = [
+                    match_id,
                     draft["blue"]["TOP"], draft["blue"]["JUNGLE"], draft["blue"]["MIDDLE"], draft["blue"]["BOTTOM"],
                     draft["blue"]["UTILITY"],
                     draft["red"]["TOP"], draft["red"]["JUNGLE"], draft["red"]["MIDDLE"], draft["red"]["BOTTOM"],
@@ -112,7 +128,6 @@ async def mine_data(seed_game_name, seed_tag_line):
                 print(f"✅ Saved Match {matches_collected}/{TARGET_MATCHES} [{match_id}]")
 
     print("\n🎉 DATA MINING COMPLETE!")
-
 
 # Run the async loop
 if __name__ == "__main__":

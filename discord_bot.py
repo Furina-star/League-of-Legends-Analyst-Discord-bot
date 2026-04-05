@@ -6,7 +6,7 @@ import requests
 import re
 from dotenv import load_dotenv
 
-# My Classes
+# Classes
 from riot_api import RiotAPIClient
 from ai_wrapper import LeagueAI
 
