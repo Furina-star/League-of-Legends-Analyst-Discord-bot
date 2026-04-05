@@ -1,11 +1,14 @@
 import asyncio
 import csv
-import os
+import os, sys
 from dotenv import load_dotenv
 from riot_api import RiotAPIClient
 
 load_dotenv()
 RIOT_KEY = os.getenv('RIOT_API_KEY')
+if not RIOT_KEY: # Quick Sanity Check
+    sys.exit("Error: DISCORD_TOKEN and RIOT_API_KEY must be set in the .env file.")
+
 REGION = "asia"  # Change region
 PLATFORM = "sg2"  # Change platform (e.g., "na1", "euw1", "kr1", etc.)
 TARGET_MATCHES = 50000  # How many games to mine

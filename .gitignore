@@ -1,6 +1,9 @@
 # Secret Files
 .env
 
+# Logs
+logs/
+
 # Virtual Environments
 .venv/
 venv/

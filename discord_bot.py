@@ -1,19 +1,32 @@
 import discord
 from discord.ext import commands
-import os
+import os, sys
 import json
 import requests
 import re
 from dotenv import load_dotenv
 from riot_api import RiotAPIClient
 from ai_wrapper import LeagueAI
+import logging
+
+# This creates and print debugs logs properly.
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("logs/furina.log"),  # saves to a file
+        logging.StreamHandler()              # still shows in console
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Initiate Data Dragon dictionary API  as a function
 CACHE_FILE = "data/champion_cache.json"
 def get_champion_mapping():
     try:
         # Fetch just the version number
-        latest_version = requests.get("https://ddragon.leagueoflegends.com/api/versions.json").json()[0]
+        latest_version = requests.get("https://ddragon.leagueoflegends.com/api/versions.json", timeout=10).json()[0]
 
         # Check if cache exists and is up to date
         if os.path.exists(CACHE_FILE):
@@ -25,7 +38,7 @@ def get_champion_mapping():
                     return cached_data.get("mapping")
 
         # If no cache exists, or the patch updated, download the heavy file
-        champ_data = requests.get(f"http://ddragon.leagueoflegends.com/cdn/{latest_version}/data/en_US/champion.json").json()
+        champ_data = requests.get(f"https://ddragon.leagueoflegends.com/cdn/{latest_version}/data/en_US/champion.json", timeout=10).json()
 
         id_to_name = {str(info['key']): name for name, info in champ_data['data'].items()}
         id_to_name["-1"] = "None"
@@ -37,11 +50,11 @@ def get_champion_mapping():
         return id_to_name
 
     except Exception as e:
-        print(f"Data Dragon error: {e}")
+        logger.error(f"Data Dragon error: {e}")
 
         # Just in case the Riot Server is down (Imagine RITO????)
         if os.path.exists(CACHE_FILE):
-            print("Network Failed: Falling back to old local cache.")
+            logger.warning("Network Failed: Falling back to old local cache.")
             with open(CACHE_FILE, "r") as f:
                 return json.load(f).get("mapping", {})
 
@@ -53,7 +66,7 @@ def load_meta_roles():
         with open('data/Champion_Roles.json', 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        print("⚠️ CRITICAL: Could not find data/Champion_Roles.json!")
+        logger.warning("⚠️ CRITICAL: Could not find data/Champion_Roles.json!")
         return {}
 
 # Custom Prefix
@@ -67,6 +80,9 @@ def custom_prefix(bot, message):
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 RIOT_KEY = os.getenv('RIOT_API_KEY')
+
+if not TOKEN or not RIOT_KEY: # Stop the system if .env is not set up.
+    sys.exit("Error: DISCORD_TOKEN and RIOT_API_KEY must be set in the .env file.")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -89,10 +105,4 @@ async def on_ready():
     # And then dump everything to the Cog
     await bot.load_extension("cogs.draft_commands")
 
-    print("Furina Architecture Online and Ready!")
-
-if __name__ == "__main__":
-    if not TOKEN or not RIOT_KEY:
-        print("⚠️ Error: Missing Discord Token or Riot API Key in .env file!")
-    else:
-        bot.run(TOKEN)
+    logger.info("Furina Architecture Online and Ready!")

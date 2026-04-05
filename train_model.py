@@ -9,6 +9,7 @@ import joblib
 import matplotlib.pyplot as plt
 import requests
 import json
+import os
 from ai_wrapper import Model, calculate_team_synergy
 
 # Load your CUSTOM Mined Data
@@ -70,19 +71,19 @@ y_test_t = torch.tensor(y_test.values, dtype=torch.float32).unsqueeze(1)
 
 # Create DataLoaders for both Training and Validation
 train_dataset = TensorDataset(x_c_train_t, x_s_train_t, y_train_t)
-train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, drop_last=True)
+train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, drop_last=True, num_workers=2)
 
 test_dataset = TensorDataset(x_c_test_t, x_s_test_t, y_test_t)
-test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=2)
 
 # Start Training
 model = Model(num_unique_champions)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 criterion = nn.BCELoss()
 
-print(f"Number of input columns: {x.shape[1]}")
+print(f"Number of input columns: {x_champs.shape[1]}")
 print(f"Total Unique Champions found: {num_unique_champions}")
-print(f"Training on {len(x_train)} matches, Validating on {len(x_test)} matches...\n")
+print(f"Training on {len(x_c_train)} matches, Validating on {len(x_c_test)} matches...\n")
 
 # Tracker for epochs
 best_val_loss = float('inf')
@@ -145,6 +146,7 @@ disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Red Win', 'B
 fig, ax = plt.subplots(figsize=(8, 6))
 disp.plot(cmap=plt.cm.Blues, ax=ax)
 plt.title('AI Draft Predictor - Confusion Matrix')
+os.makedirs("results", exist_ok=True)
 plt.savefig('results/confusion_matrix.png', dpi=300, bbox_inches='tight')
 plt.close()
 

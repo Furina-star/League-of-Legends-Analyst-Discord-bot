@@ -1,6 +1,11 @@
 import aiohttp
 import asyncio
 from urllib.parse import quote
+import re
+import logging
+
+# Get the logging system
+logger = logging.getLogger(__name__)
 
 class RiotAPIClient:
     # This sill goofy ass remembers the key and regions
@@ -12,7 +17,8 @@ class RiotAPIClient:
     # This function handles the requests
     async def _fetch(self, url, max_retries=3):
         headers = {"X-Riot-Token": self.api_key}
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             for attempt in range(max_retries):
                 async with session.get(url, headers=headers) as response:
                     # This basically means success 200 is the success code for Riot
@@ -21,20 +27,22 @@ class RiotAPIClient:
                     # This handle the Rate limit which is 429
                     elif response.status == 429:
                         retry_after = int(response.headers.get("Retry-After", 5))
-                        print(f"⚠[RATE LIMIT] Riot API paused us. Waiting {retry_after} seconds... (Attempt {attempt + 1}/{max_retries})")
+                        logger.warning(f"[RATE LIMIT] Riot API paused us. Waiting {retry_after} seconds... (Attempt {attempt + 1}/{max_retries})")
 
                         # Tell Python to wait without freezing the bot
                         await asyncio.sleep(retry_after)
 
                     else:
-                        print(f"[API ERROR {response.status}] Failed to fetch: {url}")
+                        logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
                         return None
 
-            print(f"[MAX RETRIES] Gave up on fetching: {url}")
+            logger.warning(f"[MAX RETRIES] Gave up on fetching: {url}")
             return None
 
     # Initiate getting the PUUID of the player as a function
     async def get_puuid(self, game_name, tag_line):
+        if not re.match(r'^[\w]{3,5}$', tag_line):  # Tags are 3-5 alphanumeric chars
+            return None
         encoded_name = quote(game_name)
         url = f"https://{self.region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{encoded_name}/{tag_line}"
         data = await self._fetch(url)
