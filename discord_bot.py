@@ -89,20 +89,27 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix=custom_prefix, case_insensitive=True, intents=intents)
 
-@bot.event
-async def on_ready():
-    # Remove the default help since it uses a custom one
-    bot.remove_command('help')
+if __name__ == "__main__":
+    logger.info("Downloading Data Dragon files...")
+    champ_dict_cache = get_champion_mapping()
+    meta_db_cache = load_meta_roles()
 
-    print(f'Logged in as {bot.user.name}')
 
-    # Wake up the ducking tools.
-    bot.riot_client = RiotAPIClient(RIOT_KEY)
-    bot.ai_system = LeagueAI()
-    bot.meta_db = load_meta_roles()
-    bot.champ_dict = get_champion_mapping()
+    @bot.event
+    async def on_ready():
+        bot.remove_command('help')
+        print(f'Logged in as {bot.user.name}')
 
-    # And then dump everything to the Cog
-    await bot.load_extension("cogs.draft_commands")
+        # Wake up the ducking tools.
+        bot.riot_client = RiotAPIClient(RIOT_KEY)
+        bot.ai_system = LeagueAI()
 
-    logger.info("Furina Architecture Online and Ready!")
+        bot.meta_db = meta_db_cache
+        bot.champ_dict = champ_dict_cache
+
+        # And then dump everything to the Cog
+        await bot.load_extension("cogs.draft_commands")
+
+        logger.info("Furina Architecture Online and Ready!")
+
+    bot.run(TOKEN)

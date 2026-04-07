@@ -2,6 +2,10 @@ import discord
 from discord.ext import commands
 import asyncio
 import re
+import logging
+
+# Get the logging system
+logger = logging.getLogger(__name__)
 
 # Initiate Riot ID Parser as a function.
 # this is to prevent the user from formatting it wrong, for example they might type "Hide on bush KR1" instead of "Hide on bush#KR1".
@@ -26,7 +30,7 @@ def parse_winrate(rank_string):
         return 50.0 # If unranked or missing, assume an average 50% player
 
     # Searches for numbers directly followed by "% WR"
-    match = re.search(r"(\d+)%\sWR", rank_string)
+    match = re.search(r"([\d.]+)%\sWR", rank_string)
     if match:
         return float(match.group(1))
     return 50.0
@@ -140,6 +144,10 @@ class DraftCommands(commands.Cog):
         mastery_tasks = [self.riot.get_champion_mastery(puuid, c_id) for puuid, _, c_id in players]
 
         wr_results = await asyncio.gather(*wr_tasks)
+
+        # Pause for exactly 1 second to let Riot's 20-per-second limit reset
+        await asyncio.sleep(1.0)
+
         masteries = await asyncio.gather(*mastery_tasks)
 
         winrates = [parse_winrate(res) for res in wr_results]
@@ -231,6 +239,7 @@ class DraftCommands(commands.Cog):
                 await ctx.send(embed=embed)
 
             except Exception as e:
+                logger.exception("Error in predict command:")
                 await ctx.send(f"⚠️ An unexpected error occurred: {str(e)}")
 
     # Getting the enemy information.
@@ -322,6 +331,7 @@ class DraftCommands(commands.Cog):
                 await ctx.send(embed=embed)
 
             except Exception as e:
+                logger.exception("Error in predict command:")
                 await ctx.send(f"⚠️ An unexpected error occurred: {str(e)}")
 
 # Setup Hook or something whatever this is called.

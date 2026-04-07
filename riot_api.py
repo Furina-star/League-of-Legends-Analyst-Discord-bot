@@ -1,7 +1,6 @@
 import aiohttp
 import asyncio
 from urllib.parse import quote
-import re
 import logging
 
 # Get the logging system
@@ -13,36 +12,42 @@ class RiotAPIClient:
         self.api_key = api_key
         self.platform = default_platform
         self.region = default_region
+        self.session = None
 
-    # This function handles the requests
+    # Safely get or create session
+    def _get_session(self):
+        if self._session is None or self._session.closed:
+            timeout = aiohttp.ClientTimeout(total=10)
+            self._session = aiohttp.ClientSession(timeout=timeout)
+        return self._session
+
+    # Close the session when the bot shuts down
+    async def close(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+
     async def _fetch(self, url, max_retries=3):
         headers = {"X-Riot-Token": self.api_key}
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(max_retries):
-                async with session.get(url, headers=headers) as response:
-                    # This basically means success 200 is the success code for Riot
-                    if response.status == 200:
-                        return await response.json()
-                    # This handle the Rate limit which is 429
-                    elif response.status == 429:
-                        retry_after = int(response.headers.get("Retry-After", 5))
-                        logger.warning(f"[RATE LIMIT] Riot API paused us. Waiting {retry_after} seconds... (Attempt {attempt + 1}/{max_retries})")
+        session = self._get_session()
 
-                        # Tell Python to wait without freezing the bot
-                        await asyncio.sleep(retry_after)
+        for attempt in range(max_retries):
+            async with session.get(url, headers=headers) as response:
+                # 200 means its good other than that it's an error like 429 below which gives Rate Limit Exceeded
+                if response.status == 200:
+                    return await response.json()
+                elif response.status == 429:
+                    retry_after = int(response.headers.get("Retry-After", 5))
+                    logger.warning(f"[RATE LIMIT] Waiting {retry_after}s... (Attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(retry_after)
+                else:
+                    logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
+                    return None
 
-                    else:
-                        logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
-                        return None
-
-            logger.warning(f"[MAX RETRIES] Gave up on fetching: {url}")
-            return None
+        logger.warning(f"[MAX RETRIES] Gave up on fetching: {url}")
+        return None
 
     # Initiate getting the PUUID of the player as a function
     async def get_puuid(self, game_name, tag_line):
-        if not re.match(r'^\w{3,5}$', tag_line):  # Tags are 3-5 alphanumeric chars
-            return None
         encoded_name = quote(game_name)
         url = f"https://{self.region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{encoded_name}/{tag_line}"
         data = await self._fetch(url)
