@@ -12,7 +12,7 @@ class RiotAPIClient:
         self.api_key = api_key
         self.platform = default_platform
         self.region = default_region
-        self.session = None
+        self._session = None
 
     # Safely get or create session
     def _get_session(self):

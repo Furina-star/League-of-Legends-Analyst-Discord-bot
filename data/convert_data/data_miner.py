@@ -148,12 +148,14 @@ async def mine_data(seed_game_name, seed_tag_line):
 
     if matches_collected >= TARGET_MATCHES:
         print("🎯 Target already reached! No mining needed.")
+        await client.close()
         return
 
     print(f"🌱 Planting seed: {seed_game_name}#{seed_tag_line}")
     seed_puuid = await client.get_puuid(seed_game_name, seed_tag_line)
     if not seed_puuid:
         print("❌ Invalid Seed Player.")
+        await client.close()
         return
 
     if matches_collected > 0:
@@ -184,7 +186,7 @@ async def mine_data(seed_game_name, seed_tag_line):
         print("\n🎉 DATA MINING COMPLETE!")
 
     await spider_loop()
-
+    await client.close()
 
 if __name__ == "__main__":
     asyncio.run(mine_data("Hide on Bush", "KR1"))
