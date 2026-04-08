@@ -1,6 +1,6 @@
 # --- Discord & Network ---
 discord.py==2.7.1
-aiohttp==3.13.3
+aiohttp==3.13.4
 
 # --- Machine Learning & Data ---
 torch==2.11.0
