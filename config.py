@@ -1,3 +1,6 @@
+"""
+@File: config.py
+"""
 import os
 
 # The Server Dictionary for RIOT API

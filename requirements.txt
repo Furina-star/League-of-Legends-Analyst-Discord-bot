@@ -11,8 +11,8 @@ scikit-learn==1.8.0
 
 # --- Environment & Utilities ---
 python-dotenv==1.2.2
-pytest==9.0.3
-pytest-asyncio==0.23.6
+pytest
+pytest-asyncio
 
 # --- Visualization
 matplotlib==3.10.8
