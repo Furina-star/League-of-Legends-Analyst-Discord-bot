@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from riot_api import RiotAPIClient
 from ai_wrapper import LeagueAI
 import logging
+import config
 
 # This creates and print debugs logs properly.
 os.makedirs("logs", exist_ok=True)
@@ -29,13 +30,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Get the server dictionary
-SERVER_TO_REGION = {
-    "na1": "americas", "br1": "americas", "lan1": "americas", "las1": "americas", "oc1": "americas",
-    "euw1": "europe", "eun1": "europe", "tr1": "europe", "ru": "europe",
-    "kr": "asia", "jp1": "asia", "sg2": "asia", "tw2": "asia", "vn2": "asia", "th2": "asia", "ph2": "asia"
-}
 
 # Initiate Data Dragon dictionary API  as a function
 CACHE_FILE = "data/champion_cache.json"
@@ -145,7 +139,7 @@ if __name__ == "__main__":
         bot.ai_system = LeagueAI()
         bot.meta_db = meta_db_cache
         bot.champ_dict = champ_dict_cache
-        bot.server_dict = SERVER_TO_REGION
+        bot.server_dict = config.SERVER_TO_REGION
 
         # And then dump everything to the Cog
         await bot.load_extension("cogs.draft_commands")

@@ -1,9 +1,19 @@
+"""
+This is where AI logic functions are stored, such as loading the model, preprocessing the input, and calculating the win probabilities.
+"""
+
 import torch
 import torch.nn as nn
 import joblib
 import pandas as pd
 import json
 from itertools import combinations
+import logging
+from typing import List, Tuple, Dict, Any
+import config
+
+# Get the logging system
+logger = logging.getLogger(__name__)
 
 # Define the Model Architecture
 class Model(nn.Module):
@@ -37,7 +47,7 @@ class Model(nn.Module):
         combined = torch.cat((flattened, synergy_scores, meta_rates), dim=1)
         return self.net(combined)
 
-def calculate_team_synergy(team_champs, synergy_matrix):
+def calculate_team_synergy(team_champs: List[str], synergy_matrix: Dict[str, Any]) -> float:
     score = 0.0
     for duo in combinations(sorted(team_champs), 2):
         pair_key = f"{duo[0]}-{duo[1]}"
@@ -45,15 +55,19 @@ def calculate_team_synergy(team_champs, synergy_matrix):
         if pair_key in synergy_matrix:
             # If the pair has a 54% winrate, (0.54 - 0.50) = +0.04 points
             # If the pair has a 45% winrate, (0.45 - 0.50) = -0.05 points
-            score += (synergy_matrix[pair_key]["winrate"] - 0.50)
+            score += (synergy_matrix[pair_key]["winrate"] - config.BASE_WINRATE)
 
     return score
 
 # Wrapper Class
 class LeagueAI:
     # This function set up and load Label encoder and the model
-    def __init__(self, model_path='models/Lol_draft_predictor.pth', encoder_path='models/label_encoder.pkl', synergy_path='data/Synergy_Matrix.json', meta_path='data/Meta_Champions.json'):
-        print("Loading AI Model, Label Encoder, Synergy Matrix, and Meta DB...")
+    def __init__(self, model_path: str = 'models/Lol_draft_predictor.pth',
+                 encoder_path: str = 'models/label_encoder.pkl',
+                 synergy_path: str = 'data/Synergy_Matrix.json',
+                 meta_path: str = 'data/Meta_Champions.json'):
+
+        logger.info("Loading AI Model, Label Encoder, Synergy Matrix, and Meta DB...")
 
         # Load the Label encoder
         self.le = joblib.load(encoder_path)
@@ -62,7 +76,7 @@ class LeagueAI:
         with open(synergy_path, "r") as f:
             self.synergy_matrix = json.load(f)
 
-        # Load the Meta DB into the bot's memory
+        # Load the meta database.
         with open(meta_path, "r") as f:
             self.meta_db = json.load(f)
 
@@ -71,10 +85,10 @@ class LeagueAI:
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
 
-        print("AI Model and Label Encoder loaded successfully.")
+        logger.info("AI Model and Label Encoder loaded successfully.")
 
     # This function takes in a draft dictionary, preprocesses it, and returns the predicted win probability for the blue team
-    def predict_match(self, draft_dict):
+    def predict_match(self, draft_dict: Dict[str, str]) -> Tuple[float, float, float, float]:
         correct_order = [
             'blueTopChamp', 'blueJungleChamp', 'blueMiddleChamp', 'blueADCChamp', 'blueSupportChamp',
             'redTopChamp', 'redJungleChamp', 'redMiddleChamp', 'redADCChamp', 'redSupportChamp'
@@ -87,67 +101,50 @@ class LeagueAI:
             df_input[col] = self.le.transform(df_input[col].astype(str))
 
         # Extract the raw champion names from the dictionary to calculate synergy.
-        blue_champs = [
-            draft_dict['blueTopChamp'], draft_dict['blueJungleChamp'], draft_dict['blueMiddleChamp'],
-            draft_dict['blueADCChamp'], draft_dict['blueSupportChamp']
-        ]
-        red_champs = [
-            draft_dict['redTopChamp'], draft_dict['redJungleChamp'], draft_dict['redMiddleChamp'],
-            draft_dict['redADCChamp'], draft_dict['redSupportChamp']
-        ]
+        blue_champs = [draft_dict[col] for col in correct_order[:5]]
+        red_champs = [draft_dict[col] for col in correct_order[5:]]
 
-        # Run the calculator.
+        # Calculate synergy scores for both teams using the synergy matrix
         blue_synergy = calculate_team_synergy(blue_champs, self.synergy_matrix)
         red_synergy = calculate_team_synergy(red_champs, self.synergy_matrix)
 
-        meta_list = []
-        for champ in blue_champs + red_champs:
-            # If the champ isn't in the database for some reason, default to 50% (0.5000)
-            meta_list.append(self.meta_db.get(champ, 0.5000))
+        meta_list = [self.meta_db.get(champ, config.BASE_WINRATE) for champ in blue_champs + red_champs]
 
+        # Convert everything to tensors
         x_tensor = torch.tensor(df_input.values, dtype=torch.long)
         synergy_tensor = torch.tensor([[blue_synergy, red_synergy]], dtype=torch.float32)
-
         meta_tensor = torch.tensor([meta_list], dtype=torch.float32)
 
         with torch.no_grad():
             prediction = self.model(x_tensor, synergy_tensor, meta_tensor).item()
 
-        blue_win_prob = prediction
-        red_win_prob = 1.0 - blue_win_prob
-
-        return blue_win_prob, red_win_prob, blue_synergy, red_synergy
+        return prediction, 1.0 - prediction, blue_synergy, red_synergy
 
     # This function calculates the winrates
-    def apply_hybrid_algorithm(self, base_blue_prob, blue_winrates, red_winrates, blue_masteries, red_masteries):
-        # Calculate the average team winrate
+    def apply_hybrid_algorithm(self, base_blue_prob: float, blue_winrates: List[float],
+                               red_winrates: List[float], blue_masteries: List[int],
+                               red_masteries: List[int]) -> Tuple[float, float]:
+
         avg_blue = sum(blue_winrates) / len(blue_winrates) if blue_winrates else 50.0
         avg_red = sum(red_winrates) / len(red_winrates) if red_winrates else 50.0
 
-        # Find the skill gap
-        winrate_gap = avg_blue - avg_red
-        skill_modifier = (winrate_gap * 0.5) / 100.0
+        skill_modifier = ((avg_blue - avg_red) * 0.5) / 100.0
 
-        # Calculate the mastery modifiers for both teams
-        def calculate_mastery_modifier(masteries):
+        # Use the Constants here!
+        def calculate_mastery_modifier(masteries: List[int]) -> float:
             team_mod = 0.0
             for points in masteries:
-                if points < 10000:
-                    team_mod -= 0.015 # Penalty for first-timing
-                elif points > 100000:
-                    # Buff for One-Tricks (capped at 500k points)
-                    extra_points = min(points, 500000) - 100000
-                    team_mod += (extra_points / 100000) * 0.01
+                if points < config.FIRST_TIME_THRESHOLD:
+                    team_mod -= config.FIRST_TIME_PENALTY
+                elif points > config.OTP_THRESHOLD:
+                    extra_points = min(points, config.OTP_MAX_CAP) - config.OTP_THRESHOLD
+                    team_mod += (extra_points / 100000) * config.OTP_BUFF_MULTIPLIER
             return team_mod
 
         blue_x_factor = calculate_mastery_modifier(blue_masteries)
         red_x_factor = calculate_mastery_modifier(red_masteries)
 
-        # Add everything together
         final_blue_prob = base_blue_prob + skill_modifier + blue_x_factor - red_x_factor
-
-        # Clamp the results so we never get mathematically impossible numbers like 105%
         final_blue_prob = max(0.01, min(0.99, final_blue_prob))
-        final_red_prob = 1.0 - final_blue_prob
 
-        return final_blue_prob, final_red_prob
+        return final_blue_prob, 1.0 - final_blue_prob

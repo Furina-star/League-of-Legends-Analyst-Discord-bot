@@ -7,13 +7,14 @@ import aiohttp
 import asyncio
 from urllib.parse import quote
 import logging
+from typing import Optional, Dict, Any, List, Union
 
 # Get the logging system
 logger = logging.getLogger(__name__)
 
 class RiotAPIClient:
     # This sill goofy ass remembers the key and regions
-    def __init__(self, api_key, default_platform="sg2", default_region="asia"):
+    def __init__(self, api_key: str, default_platform: str = "sg2", default_region: str = "asia") -> None:
         self.api_key = api_key
         self.platform = default_platform
         self.region = default_region
@@ -31,7 +32,7 @@ class RiotAPIClient:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    async def _fetch(self, url, max_retries=3):
+    async def _fetch(self, url: str, max_retries: int = 3) -> Optional[Union[Dict[str, Any], List[Any]]]:
         headers = {"X-Riot-Token": self.api_key}
         session = self._get_session()
 
@@ -52,7 +53,7 @@ class RiotAPIClient:
         return None
 
     # Initiate getting the PUUID of the player as a function
-    async def get_puuid(self, game_name, tag_line, region_override=None):
+    async def get_puuid(self, game_name: str, tag_line: str, region_override: Optional[str] = None) -> Optional[str]:
         r= region_override or self.region
         encoded_name = quote(game_name)
         url = f"https://{r}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{encoded_name}/{tag_line}"
@@ -62,13 +63,13 @@ class RiotAPIClient:
         return None
 
     # Initiate Live Match API as a function
-    async def get_live_match(self, puuid, platform_override=None):
+    async def get_live_match(self, puuid: str, platform_override: Optional[str] = None) -> Optional[Dict[str, Any]]:
         p = platform_override or self.platform
         url = f"https://{p}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
         return await self._fetch(url)
 
     # Initiate Champion Mastery API as a function
-    async def get_champion_mastery(self, puuid, champ_id, platform_override=None):
+    async def get_champion_mastery(self, puuid: str, champ_id: int, platform_override: Optional[str] = None) -> int:
         if not puuid:
             return 0
 
@@ -80,7 +81,7 @@ class RiotAPIClient:
         return 0
 
     # Initiate Summoner ID API as a function
-    async def get_summoner_id(self, puuid, platform_override=None):
+    async def get_summoner_id(self, puuid: str, platform_override: Optional[str] = None) -> Optional[str]:
         if not puuid:
             return None
 
@@ -120,7 +121,7 @@ class RiotAPIClient:
         return base_str
 
     # Initiate Solo/Duo Rank API as a function
-    async def get_summoner_rank(self, summoner_id, platform_override=None):
+    async def get_summoner_rank(self, summoner_id: str, platform_override: Optional[str] = None) -> str:
         p = platform_override or self.platform
         url = f"https://{p}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}"
         data = await self._fetch(url)
