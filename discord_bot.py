@@ -7,6 +7,7 @@ This separate files that can be easily maintained and updated without affecting 
 This separation of concerns allows for a cleaner and more organized codebase, making it easier to debug and add new features in the future.
 """
 
+import asyncio
 import discord
 from discord.ext import commands
 import os, sys
@@ -18,6 +19,11 @@ from riot_api import RiotAPIClient
 from ai_wrapper import LeagueAI
 import logging
 import config
+
+# A standard synchronous function to load JSON
+def load_json_file(filepath):
+    with open(filepath, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 # This creates and print debugs logs properly.
 os.makedirs("logs", exist_ok=True)
@@ -103,13 +109,15 @@ class DiscordBot(commands.Bot):
     async def setup_hook(self):
         logger.info("Running one-time setup...")
 
+        # 🚀 Use asyncio to push the blocking file read to a background thread!
+        self.meta_db = await asyncio.to_thread(load_json_file, config.META_PATH)
+        self.champ_dict = await asyncio.to_thread(load_json_file, config.CHAMP_DICT_PATH)
+
         # Initialize APIs and AI here so they only load once!
-        self.riot_client = RiotAPIClient(RIOT_KEY)
+        self.riot_client = RiotAPIClient(config.RIOT_KEY)
         self.ai_system = LeagueAI()
 
         # Attach the dictionaries and configs
-        self.meta_db = meta_db_cache
-        self.champ_dict = champ_dict_cache
         self.server_dict = config.SERVER_TO_REGION
 
         # Remove the default help

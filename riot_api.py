@@ -2,6 +2,7 @@
 This is the part of the code that directly interacts with Riot's servers to fetch data about players, matches, and more.
 It handles all the API calls, rate limits, and data parsing to provide clean and usable information for the rest of the bot to work with.
 """
+
 import random
 import aiohttp
 import asyncio
@@ -37,24 +38,30 @@ class RiotAPIClient:
         session = self._get_session()
 
         for attempt in range(max_retries):
-            async with session.get(url, headers=headers) as response:
-                # 200 means its good other than that it's an error like 429 below which gives Rate Limit Exceeded
-                if response.status == 200:
-                    return await response.json()
-                # 429 means the API rate limit was exceeded, so we need to wait before retrying
-                elif response.status == 429:
-                    retry_after = int(response.headers.get("Retry-After", 5))
-                    logger.warning(f"[RATE LIMIT] Waiting {retry_after}s... (Attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(retry_after)
-                # Exponential backoff + Jitter for server errors
-                elif response.status >= 500:
-                    sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)
-                    logger.warning(f"[SERVER ERROR {response.status}] Retrying in {sleep_time:.2f}s...")
-                    await asyncio.sleep(sleep_time)
-                # This error is the API itself
-                else:
-                    logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
-                    return None
+            try:
+                async with session.get(url, headers=headers, timeout=10) as response:
+                    # 200 means its good other than that it's an error like 429 below which gives Rate Limit Exceeded
+                    if response.status == 200:
+                        return await response.json()
+                    # 429 means the API rate limit was exceeded, so we need to wait before retrying
+                    elif response.status == 429:
+                        retry_after = int(response.headers.get("Retry-After", 5))
+                        logger.warning(f"[RATE LIMIT] Waiting {retry_after}s... (Attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(retry_after)
+                    # Exponential backoff + Jitter for server errors
+                    elif response.status >= 500:
+                        sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)
+                        logger.warning(f"[SERVER ERROR {response.status}] Retrying in {sleep_time:.2f}s...")
+                        await asyncio.sleep(sleep_time)
+                    # This error is the API itself
+                    else:
+                        logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
+                        return None
+            # Catch actual internet drops and timeouts!
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)
+                logger.warning(f"[NETWORK ERROR] {e}. Retrying in {sleep_time:.2f}s...")
+                await asyncio.sleep(sleep_time)
 
         logger.warning(f"[MAX RETRIES] Gave up on fetching: {url}")
         return None
