@@ -1,3 +1,12 @@
+"""
+The main Discord bot file.
+This is where the bot is initiated, the APIs are called, and the Cogs are loaded.
+The main purpose of this file is to set up the architecture of the bot and handle any global events or errors that may occur.
+The actual commands and logic for the draft system are handled in the Cogs.
+This separate files that can be easily maintained and updated without affecting the core functionality of the bot.
+This separation of concerns allows for a cleaner and more organized codebase, making it easier to debug and add new features in the future.
+"""
+
 import discord
 from discord.ext import commands
 import os, sys
@@ -15,7 +24,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("logs/furina.log"),  # saves to a file
+        logging.FileHandler("tests/logs/furina.log"),  # saves to a file
         logging.StreamHandler()              # still shows in console
     ]
 )
@@ -87,7 +96,31 @@ if not TOKEN or not RIOT_KEY: # Stop the system if .env is not set up.
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix=custom_prefix, case_insensitive=True, intents=intents)
+# Creating a subclass of commands.Bot
+class DiscordBot(commands.Bot):
+    # This shutdown the API Session completely if the bot itself shut down
+    async def on_ready(self):
+        if hasattr(self, 'riot_client'):
+            await self.riot_client.close()
+            logger.info("Riot API connection closed safely.")
+
+        # Resume the normal Discord shutdown process
+        await super().close()
+
+    # This handle spamming and other common command errors gracefully, without crashing the bot or spamming the channel with error messages.
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"⏳ **Slow down!** You can use this command again in `{error.retry_after:.1f}` seconds.")
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("⚠️ You are missing some arguments! Check `f help` for the correct format.")
+        elif isinstance(error, commands.CommandNotFound):
+            # Ignore commands that don't exist, like if someone types 'f something, something'
+            pass
+        else:
+            # If it's a real bug
+            logger.error(f"Ignoring exception in command {ctx.command}:", exc_info=error)
+
+bot = DiscordBot(command_prefix=custom_prefix, case_insensitive=True, intents=intents)
 
 if __name__ == "__main__":
     logger.info("Downloading Data Dragon files...")
@@ -109,6 +142,7 @@ if __name__ == "__main__":
 
         # And then dump everything to the Cog
         await bot.load_extension("cogs.draft_commands")
+        await bot.load_extension("cogs.general_commands")
 
         logger.info("Furina Architecture Online and Ready!")
 

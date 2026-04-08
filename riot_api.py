@@ -1,3 +1,8 @@
+"""
+This is the part of the code that directly interacts with Riot's servers to fetch data about players, matches, and more.
+It handles all the API calls, rate limits, and data parsing to provide clean and usable information for the rest of the bot to work with.
+"""
+
 import aiohttp
 import asyncio
 from urllib.parse import quote
@@ -47,43 +52,49 @@ class RiotAPIClient:
         return None
 
     # Initiate getting the PUUID of the player as a function
-    async def get_puuid(self, game_name, tag_line):
+    async def get_puuid(self, game_name, tag_line, region_override=None):
+        r= region_override or self.region
         encoded_name = quote(game_name)
-        url = f"https://{self.region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{encoded_name}/{tag_line}"
+        url = f"https://{r}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{encoded_name}/{tag_line}"
         data = await self._fetch(url)
         if isinstance(data, dict):
             return data.get('puuid')
         return None
 
     # Initiate Live Match API as a function
-    async def get_live_match(self, puuid):
-        url = f"https://{self.platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
+    async def get_live_match(self, puuid, platform_override=None):
+        p = platform_override or self.platform
+        url = f"https://{p}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
         return await self._fetch(url)
 
     # Initiate Champion Mastery API as a function
-    async def get_champion_mastery(self, puuid, champ_id):
-        url = f"https://{self.platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/by-champion/{champ_id}"
+    async def get_champion_mastery(self, puuid, champ_id, platform_override=None):
+        p = platform_override or self.platform
+        url = f"https://{p}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/by-champion/{champ_id}"
         data = await self._fetch(url)
         if isinstance(data, dict):
             return data.get('championPoints', 0)
         return 0
 
     # Initiate Summoner ID API as a function
-    async def get_summoner_id(self, puuid):
-        url = f"https://{self.platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}"
+    async def get_summoner_id(self, puuid, platform_override=None):
+        p = platform_override or self.platform
+        url = f"https://{p}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}"
         data = await self._fetch(url)
         if isinstance(data, dict):
             return data.get('id')
         return None
 
     # Initiate Match History API as a function
-    async def get_match_history(self, puuid, count=20, queue_id=420):
-        url = f"https://{self.region}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?queue={queue_id}&start=0&count={count}"
+    async def get_match_history(self, puuid, count=20, queue_id=420, platform_override=None):
+        p = platform_override or self.platform
+        url = f"https://{p}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?queue={queue_id}&start=0&count={count}"
         return await self._fetch(url)
 
     # Initiate Match Details API as a function
-    async def get_match_details(self, match_id):
-        url = f"https://{self.region}.api.riotgames.com/lol/match/v5/matches/{match_id}"
+    async def get_match_details(self, match_id, platform_override=None):
+        p = platform_override or self.platform
+        url = f"https://{p}.api.riotgames.com/lol/match/v5/matches/{match_id}"
         return await self._fetch(url)
 
     # Initiate Solo/Duo Rank API as a function

@@ -48,7 +48,7 @@ def build_meta_database():
     with open(JSON_PATH, "w") as f:
         json.dump(final_meta, f, indent=4)
 
-    print(f"✅ Meta Database built successfully! Tracked {len(final_meta)} champions.")
+    print(f"Meta Database built successfully! Tracked {len(final_meta)} champions.")
 
 
 if __name__ == "__main__":

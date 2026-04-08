@@ -1,60 +1,71 @@
-# League Analyst Discord Bot
+# Furina — League Analyst
 
-A modular, object-oriented Discord application powered by the Riot Games API and PyTorch. Furina acts as a real-time Solo Queue analyst, calculating live match win conditions and aggregating enemy player statistics into clean dossiers.
+A modular, object-oriented Discord bot powered by the Riot Games API and PyTorch. Calculates live match win conditions and aggregates enemy player statistics into clean dossiers.
 
-## ✨ Features
+## Stack
 
-* **AI Match Prediction (`f predict`):** Uses a trained PyTorch Neural Network to evaluate a live 5v5 draft and calculate the win probability for both the Blue and Red teams based on team composition.
-* **Live Scouting (`f scout`):** Automatically detects which team the user is on and generates a detailed dossier of the enemy team, including Champion Mastery points and current Solo/Duo Queue ranks.
+| | |
+|---|---|
+| Runtime | Python |
+| ML | PyTorch |
+| Bot framework | discord.py |
+| Data source | Riot Games API |
 
-## 🚀 Installation & Setup
+## Features
 
-If you want to run your own instance of Furina, follow these steps:
+### `f predict` — AI match prediction
+Evaluates a live 5v5 draft using a trained PyTorch neural network and outputs win probability for both blue and red side.
 
-### 1. Clone the Repository
-\`\`\`bash
+### `f scout` — Live scouting dossier
+Detects which team the user is on and pulls champion mastery and Solo/Duo queue ranks for every enemy player.
+
+## Installation
+
+### 1 — Clone
+```bash
 git clone https://github.com/Furina-star/Furina-League-of-Legends-Analyst-Discord-bot.git
 cd Furina-League-Bot
-\`\`\`
+```
 
-### 2. Set Up the Virtual Environment
-It is highly recommended to use a virtual environment to manage dependencies.
-\`\`\`bash
-## Create the environment
+### 2 — Virtual environment
+```bash
 python -m venv .venv
 
-## Activate the environment (Windows)
+# windows
 .venv\Scripts\activate
 
-## Activate the environment (Mac/Linux)
+# mac / linux
 source .venv/bin/activate
-\`\`\`
+```
 
-### 3. Install Dependencies
-\`\`\`bash
+### 3 — Dependencies
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
-### 4. Environment Variables
-Create a file named exactly `.env` in the root folder of the project. You will need to supply your own Discord Bot Token and Riot Games Developer Key.
-\`\`\`env
+### 4 — Environment variables
+Create a `.env` file in the project root:
+```env
 DISCORD_TOKEN=your_discord_bot_token_here
 RIOT_API_KEY=your_riot_api_key_here
-\`\`\`
+```
 
-### 5. Run the Bot
-\`\`\`bash
-discord_bot.py
-\`\`\`
+### 5 — Run
+```bash
+python discord_bot.py
+```
 
-## 📖 Command List
+## Command reference
 
-Furina uses the prefix `f ` or `furina `.
+Prefix: `f ` or `furina `
 
-* `f help` - Displays the interactive help menu.
-* `f ping` - Checks the bot's latency and online status.
-* `f predict RiotName#Tag` - Fetches the live game for the specified user and runs the draft through the PyTorch model to predict the winner.
-* `f scout RiotName#Tag` - Finds the live game, determines the enemy team, and pulls their current Ranks and Champion Mastery for their locked-in champions.
+| Command | Description |
+|---|---|
+| `f help` | Displays the interactive help menu |
+| `f ping` | Checks bot latency and online status |
+| `f predict RiotName#Tag` | Runs the live draft through the PyTorch model and outputs win probability per side |
+| `f scout RiotName#Tag` | Generates an enemy team dossier with ranks and champion mastery |
 
-## ⚠️ Disclaimer
-Furina League Analyst Bot isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing League of Legends. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc. League of Legends © Riot Games, Inc.
+---
+
+*Not endorsed by Riot Games. League of Legends and Riot Games are trademarks of Riot Games, Inc.*

@@ -1,3 +1,9 @@
+"""
+This part of the Discord  League Analyst Bot
+is all about the draft commands,
+commands that analyze the live game, predict the win condition, and scout the enemy team.
+"""
+
 import discord
 from discord.ext import commands
 import asyncio
@@ -6,6 +12,13 @@ import logging
 
 # Get the logging system
 logger = logging.getLogger(__name__)
+
+# Get the server dictionary
+SERVER_TO_REGION = {
+    "na1": "americas", "br1": "americas", "lan1": "americas", "las1": "americas", "oc1": "americas",
+    "euw1": "europe", "eun1": "europe", "tr1": "europe", "ru": "europe",
+    "kr": "asia", "jp1": "asia", "sg2": "asia", "tw2": "asia", "vn2": "asia", "th2": "asia", "ph2": "asia"
+}
 
 # Initiate Riot ID Parser as a function.
 # this is to prevent the user from formatting it wrong, for example they might type "Hide on bush KR1" instead of "Hide on bush#KR1".
@@ -106,23 +119,6 @@ class DraftCommands(commands.Cog):
                 return p.get('bot', False) or not p.get('puuid')
         return False
 
-    @commands.command()
-    async def ping(self, ctx):
-        await ctx.send("I'm online!")
-
-    @commands.command(name="help")
-    async def custom_help(self, ctx):
-        embed = discord.Embed(
-            title="💧 Furina League Analyst Bot - Help Menu",
-            description="I am Furina, your personal Solo Queue analyst! Here is how to use my commands:\n"
-                        "Prefix: `f` or `furina` (e.g., `f ping`, `furina predict`)",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="🏓 `f ping`", value="Checks if Furina is online.", inline=False)
-        embed.add_field(name="⚔️ `f predict`", value="Calculates win probability. Format: `f predict Name#Tag`",inline=False)
-        embed.add_field(name="🕵️ `f scout`", value="Builds an enemy dossier. Format: `f scout Name#Tag`", inline=False)
-        await ctx.send(embed=embed)
-
     # Getting the Live game command.
     # Formats the team display strings.
     def _format_team_display(self, team_picks, raw_team):
@@ -134,14 +130,14 @@ class DraftCommands(commands.Cog):
         return display
 
     # Fetches mastery and rank concurrently for a team.
-    async def _fetch_team_stats(self, players):
+    async def _fetch_team_stats(self, players, server):
         async def fetch_rank_safe(sid):
             if sid:
-                return await self.riot.get_summoner_rank(sid)
+                return await self.riot.get_summoner_rank(sid, platform_override=server)
             return "Unranked"
 
         wr_tasks = [fetch_rank_safe(sid) for _, sid, _ in players]
-        mastery_tasks = [self.riot.get_champion_mastery(puuid, c_id) for puuid, _, c_id in players]
+        mastery_tasks = [self.riot.get_champion_mastery(puuid, c_id, platform_override=server) for puuid, _, c_id in players]
 
         wr_results = await asyncio.gather(*wr_tasks)
 
@@ -156,24 +152,33 @@ class DraftCommands(commands.Cog):
         return winrates, masteries, avg_wr
     # Predict the win condition before the game starts
     @commands.command()
-    async def predict(self, ctx, *, full_riot_id: str):
+    @commands.cooldown(1, 3, commands.BucketType.user)
+    async def predict(self, ctx, server: str, *, full_riot_id: str):
+        # Automatically gets "americas", "asia", or "europe"
+        server = server.lower()
+        if server not in SERVER_TO_REGION:
+            await ctx.send(f"⚠️ Invalid server! Valid servers are: {', '.join(SERVER_TO_REGION.keys())}")
+            return
+
+        region = SERVER_TO_REGION[server]
+
         # This call out the Riot ID parser
         game_name, tag_line = parse_riot_id(full_riot_id)
         if not game_name:
-            await ctx.send("⚠️ Format Error! Please use: `f predict Name#Tag`")
+            await ctx.send("⚠️ Format Error! Please use: `f predict <server> Name#Tag` (e.g., `f predict NA1 Doublelift#NA1`)")
             return
 
-        await ctx.send(f"Fetching live match data for {game_name} #{tag_line}...")
+        await ctx.send(f"Fetching live match data for {game_name} #{tag_line} on  {server.upper()}...")
         async with ctx.typing():
             try:
                 # Get PUUID
-                puuid = await self.riot.get_puuid(game_name, tag_line)
+                puuid = await self.riot.get_puuid(game_name, tag_line, region_override=region)
                 if not puuid:
-                    await ctx.send(f"⚠️ Could not find player {game_name} #{tag_line}. Check spelling!")
+                    await ctx.send(f"⚠️ Could not find player {game_name} #{tag_line} on {server.upper()}. Check spelling!")
                     return
 
                 # Get Live Match
-                match_data = await self.riot.get_live_match(puuid)
+                match_data = await self.riot.get_live_match(puuid, platform_override=server)
                 if not match_data:
                     await ctx.send("⚠️ This player is not currently in a live match!")
                     return
@@ -209,8 +214,8 @@ class DraftCommands(commands.Cog):
                 red_players = [(p['puuid'], p.get('summonerId'), p['championId']) for p in raw_red_team]
 
                 # Use our new helper to do the heavy asynchronous lifting!
-                blue_winrates, blue_masteries, avg_blue_wr = await self._fetch_team_stats(blue_players)
-                red_winrates, red_masteries, avg_red_wr = await self._fetch_team_stats(red_players)
+                blue_winrates, blue_masteries, avg_blue_wr = await self._fetch_team_stats(blue_players, server)
+                red_winrates, red_masteries, avg_red_wr = await self._fetch_team_stats(red_players, server)
 
                 # Pass everything into the Hybrid Algorithm
                 final_blue_prob, final_red_prob = self.ai.apply_hybrid_algorithm(
@@ -244,15 +249,15 @@ class DraftCommands(commands.Cog):
 
     # Getting the enemy information.
     # Initiate Dossier Builder as a function
-    async def _build_enemy_dossier(self, match_data, enemy_team_id, embed):
+    async def _build_enemy_dossier(self, match_data, enemy_team_id, embed, server):
         # Mini helper function to fetch a single player's data concurrently
         async def fetch_player_data(p, c_name, riot_id, e_puuid, c_id):
-            mastery_task = self.riot.get_champion_mastery(e_puuid, c_id)
+            mastery_task = self.riot.get_champion_mastery(e_puuid, c_id, platform_override=server)
 
             # Helper to safely grab rank, checking summoner ID if needed
             async def get_rank():
-                sum_id = p.get('summonerId') or await self.riot.get_summoner_id(e_puuid)
-                return await self.riot.get_summoner_rank(sum_id) if sum_id else "Unranked"
+                sum_id = p.get('summonerId') or await self.riot.get_summoner_id(e_puuid, platform_override=server)
+                return await self.riot.get_summoner_rank(sum_id, platform_override=server) if sum_id else "Unranked"
 
             # Fire mastery and rank tasks for this specific player simultaneously
             mastery, rank = await asyncio.gather(mastery_task, get_rank())
@@ -289,27 +294,36 @@ class DraftCommands(commands.Cog):
 
     # This part checks what type of bs the enemy team is running
     @commands.command()
-    async def scout(self, ctx, *, full_riot_id: str):
+    @commands.cooldown(1, 3, commands.BucketType.user)
+    async def scout(self, ctx, server: str,  *, full_riot_id: str):
+        # Automatically gets "americas", "asia", or "europe"
+        server = server.lower()
+        if server not in SERVER_TO_REGION:
+            await ctx.send(f"⚠️ Invalid server! Valid servers are: {', '.join(SERVER_TO_REGION.keys())}")
+            return
+
+        region = SERVER_TO_REGION[server]
+
         # This call out the Riot ID parser
         game_name, tag_line = parse_riot_id(full_riot_id)
 
         # Same as above bouncer, yeah yeah yeah.
         if not game_name:
-            await ctx.send("⚠️ Format Error! Please use: `f scout Name#Tag` or `f scout Name Tag`")
+            await ctx.send("⚠️ Format Error! Please use: `f scout <server> Name#Tag` (e.g., `f scout NA1 Doublelift#NA1`)")
             return
 
-        await ctx.send(f"🕵️ Scouting the enemy team for {game_name} #{tag_line}...")
+        await ctx.send(f"🕵️ Scouting the enemy team for {game_name} #{tag_line} on {server.upper()}...")
         async with ctx.typing():
 
             try:
                 # This call out get_riot_puuid function from RiotAPIClient Class in riot_api.py.
-                puuid = await self.riot.get_puuid(game_name, tag_line)
+                puuid = await self.riot.get_puuid(game_name, tag_line, region_override=region)
                 if not puuid:
-                    await ctx.send(f"⚠️ Could not find player {game_name} #{tag_line}. Check spelling!")
+                    await ctx.send(f"⚠️ Could not find player {game_name} #{tag_line} on {server.upper()}. Check spelling!")
                     return
 
                 # This call out get_live_match function from RiotAPIClient Class in riot_api.py.
-                match_data = await self.riot.get_live_match(puuid)
+                match_data = await self.riot.get_live_match(puuid, platform_override=server)
                 if not match_data:
                     await ctx.send("⚠️ This player is not currently in a live match!")
                     return
@@ -323,15 +337,15 @@ class DraftCommands(commands.Cog):
                 enemy_team_id = 200 if user_team == 100 else 100
 
                 # Building the Discord Embed
-                embed = discord.Embed(title="🕵️ Enemy Team Dossier", description=f"Scouting for **{game_name}**", color=discord.Color.dark_purple())
+                embed = discord.Embed(title=f"🕵️ Enemy Team Dossier ({server.upper()})", description=f"Scouting for **{game_name}**", color=discord.Color.dark_purple())
 
                 # Get _build_enemy_dossier
-                embed = await self._build_enemy_dossier(match_data, enemy_team_id, embed)
+                embed = await self._build_enemy_dossier(match_data, enemy_team_id, embed, server)
 
                 await ctx.send(embed=embed)
 
             except Exception as e:
-                logger.exception("Error in predict command:")
+                logger.exception("Error in scout command:")
                 await ctx.send(f"⚠️ An unexpected error occurred: {str(e)}")
 
 # Setup Hook or something whatever this is called.

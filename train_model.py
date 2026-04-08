@@ -55,7 +55,7 @@ all_champions.extend(['None', 'Unknown'])
 # Encode
 le = LabelEncoder()
 le.fit(all_champions)
-text_cols = [col for col in df.columns if col not in ['blueWin', 'matchId', 'blueSynergy', 'redSynergy']]
+text_cols = [col for col in df.columns if col not in ['blueWin', 'matchId', 'blueSynergy', 'redSynergy', 'metaRates']]
 
 print("Translating CSV data...")
 for col in text_cols:
@@ -86,10 +86,10 @@ y_test_t = torch.tensor(y_test.values, dtype=torch.float32).unsqueeze(1)
 
 # Create DataLoaders for both Training and Validation
 train_dataset = TensorDataset(x_c_train_t, x_s_train_t, x_m_train_t, y_train_t)
-train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, drop_last=True, num_workers=2)
+train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=True, drop_last=True, num_workers=0)
 
-test_dataset = TensorDataset(x_c_test_t, x_s_test_t, y_test_t)
-test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=2)
+test_dataset = TensorDataset(x_c_test_t, x_s_test_t, x_m_test_t, y_test_t)
+test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=False, num_workers=0)
 
 # Start Training
 model = Model(num_unique_champions)
@@ -105,7 +105,7 @@ best_val_loss = float('inf')
 patience = 5
 patience_counter = 0
 
-num_epochs = 40
+num_epochs = 50
 for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
