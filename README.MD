@@ -1,4 +1,4 @@
-# Furina — League Analyst
+# Discord League Analyst Bot
 
 A modular, object-oriented Discord bot powered by the Riot Games API and PyTorch. Calculates live match win conditions and aggregates enemy player statistics into clean dossiers.
 
@@ -21,13 +21,13 @@ Detects which team the user is on and pulls champion mastery and Solo/Duo queue 
 
 ## Installation
 
-### 1 — Clone
+### 1. Clone
 ```bash
 git clone https://github.com/Furina-star/Furina-League-of-Legends-Analyst-Discord-bot.git
 cd Furina-League-Bot
 ```
 
-### 2 — Virtual environment
+### 2. Virtual environment
 ```bash
 python -m venv .venv
 
@@ -38,19 +38,19 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3 — Dependencies
+### 3. Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4 — Environment variables
+### 4. Environment variables
 Create a `.env` file in the project root:
 ```env
 DISCORD_TOKEN=your_discord_bot_token_here
 RIOT_API_KEY=your_riot_api_key_here
 ```
 
-### 5 — Run
+### 5. Run
 ```bash
 python discord_bot.py
 ```
@@ -59,12 +59,12 @@ python discord_bot.py
 
 Prefix: `f ` or `furina `
 
-| Command | Description |
-|---|---|
-| `f help` | Displays the interactive help menu |
-| `f ping` | Checks bot latency and online status |
-| `f predict RiotName#Tag` | Runs the live draft through the PyTorch model and outputs win probability per side |
-| `f scout RiotName#Tag` | Generates an enemy team dossier with ranks and champion mastery |
+| Command                           | Description |
+|-----------------------------------|---|
+| `f help`                          | Displays the interactive help menu |
+| `f ping`                          | Checks bot latency and online status |
+| `f predict <server> RiotName#Tag` | Runs the live draft through the PyTorch model and outputs win probability per side |
+| `f scout <server> RiotName#Tag`   | Generates an enemy team dossier with ranks and champion mastery |
 
 ---
 
