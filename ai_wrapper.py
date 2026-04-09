@@ -4,8 +4,8 @@ This is where AI logic functions are stored, such as loading the model, preproce
 
 import torch
 import torch.nn as nn
-import joblib
-import pandas as pd
+import skops.io as sio  # 🛡️ SECURE: Replaces joblib!
+from safetensors.torch import load_model  # 🛡️ SECURE: Replaces torch.load!
 import json
 from itertools import combinations
 import logging
@@ -62,27 +62,31 @@ def calculate_team_synergy(team_champs: List[str], synergy_matrix: Dict[str, Any
 # Wrapper Class
 class LeagueAI:
     # This function set up and load Label encoder and the model
-    def __init__(self, model_path: str = config.MODEL_PATH,
-                 encoder_path: str = config.ENCODER_PATH,
+    def __init__(self,
+                 model_path: str = "models/league_model.safetensors",
+                 encoder_path: str = "models/encoder.skops",
                  synergy_path: str = config.SYNERGY_PATH,
                  meta_path: str = config.META_PATH):
 
         logger.info("Loading AI Model, Label Encoder, Synergy Matrix, and Meta DB...")
 
-        # Load the Label encoder
-        self.le = joblib.load(encoder_path)
+        # Load the Label encoder using skops (Blocks malicious code execution)
+        self.le = sio.load(encoder_path, trusted=True)
 
-        # Load the torch model
+        # Convert classes to a Python set once for O(1) lightning-fast lookups
+        self.known_classes = set(self.le.classes_)
+
+        # Load the JSON databases
         with open(synergy_path, "r") as f:
             self.synergy_matrix = json.load(f)
-
-        # Load the meta database.
         with open(meta_path, "r") as f:
             self.meta_db = json.load(f)
 
-        checkpoint = torch.load(model_path, weights_only=True)
-        self.model = Model(checkpoint['num_champs'])
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        # Load PyTorch using safetensors
+        # We calculate num_champs dynamically from the LabelEncoder length so we don't need the unsafe .pth dict!
+        num_champs = len(self.le.classes_)
+        self.model = Model(num_champs)
+        load_model(self.model, model_path)
         self.model.eval()
 
         logger.info("AI Model and Label Encoder loaded successfully.")
@@ -94,24 +98,22 @@ class LeagueAI:
             'redTopChamp', 'redJungleChamp', 'redMiddleChamp', 'redADCChamp', 'redSupportChamp'
         ]
 
-        df_input = pd.DataFrame([draft_dict])[correct_order]
-
-        for col in df_input.columns:
-            df_input[col] = df_input[col].apply(lambda x: x if x in self.le.classes_ else 'Unknown')
-            df_input[col] = self.le.transform(df_input[col].astype(str))
+        raw_champs = [draft_dict[col] for col in correct_order]
+        processed_champs = [champ if champ in self.known_classes else 'Unknown' for champ in raw_champs]
+        encoded_champs = self.le.transform(processed_champs)
 
         # Extract the raw champion names from the dictionary to calculate synergy.
-        blue_champs = [draft_dict[col] for col in correct_order[:5]]
-        red_champs = [draft_dict[col] for col in correct_order[5:]]
+        blue_champs = raw_champs[:5]
+        red_champs = raw_champs[5:]
 
         # Calculate synergy scores for both teams using the synergy matrix
         blue_synergy = calculate_team_synergy(blue_champs, self.synergy_matrix)
         red_synergy = calculate_team_synergy(red_champs, self.synergy_matrix)
 
-        meta_list = [self.meta_db.get(champ, config.BASE_WINRATE) for champ in blue_champs + red_champs]
+        meta_list = [self.meta_db.get(champ, config.BASE_WINRATE) for champ in raw_champs]
 
         # Convert everything to tensors
-        x_tensor = torch.tensor(df_input.values, dtype=torch.long)
+        x_tensor = torch.tensor([encoded_champs], dtype=torch.long)  # Notice the extra [] to make it a batch of 1
         synergy_tensor = torch.tensor([[blue_synergy, red_synergy]], dtype=torch.float32)
         meta_tensor = torch.tensor([meta_list], dtype=torch.float32)
 

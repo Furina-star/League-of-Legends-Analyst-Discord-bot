@@ -2,7 +2,6 @@
 @File: config.py
 """
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,8 +25,8 @@ BASE_WINRATE = 0.50
 
 # The Directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'Lol_draft_predictor.pth')
-ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'Lol_draft_predictor.safetensors')
+ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.skops')
 SYNERGY_PATH = os.path.join(BASE_DIR, 'data', 'Synergy_Matrix.json')
 META_PATH = os.path.join(BASE_DIR, 'data', 'Meta_Champions.json')
 ROLES_PATH = os.path.join(BASE_DIR, 'data', 'Champion_Roles.json')
