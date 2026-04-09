@@ -20,7 +20,7 @@ Evaluates a live 5v5 draft using a trained PyTorch neural network and outputs wi
 ### `/ scout` — Live scouting dossier
 Detects which team the user is on and pulls champion mastery and Solo/Duo queue ranks for every enemy player.
 
-### Global Localization (i18n)
+### Static Localization (i18n)
 Automatically detects the user's Discord client language and natively translates command outputs into 12 different languages.
 
 ### Secure & Optimized Inference
@@ -57,7 +57,7 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 ```env
 DISCORD_TOKEN=your_discord_bot_token_here
-RIOT_KEY=your_riot_api_key_here
+RIOT_API_KEY=your_riot_api_key_here
 ```
 
 ### 5. Run

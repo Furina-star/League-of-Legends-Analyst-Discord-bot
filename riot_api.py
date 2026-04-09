@@ -37,6 +37,9 @@ class RiotAPIClient:
 
     # Close the session when the bot shuts down
     async def close(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+
         if hasattr(self, 'cache') and self.cache is not None:
             await self.cache.close()
 
@@ -77,7 +80,7 @@ class RiotAPIClient:
                         else:
                             logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
                             return None
-                        
+
                 # Catch actual internet drops and timeouts!
                 except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                     sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)

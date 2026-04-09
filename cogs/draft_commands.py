@@ -362,11 +362,12 @@ class DraftCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
+            safe_name = escape_mentions(game_name)
             # This call out get_riot_puuid function from RiotAPIClient Class in riot_api.py.
             puuid = await self.riot.get_puuid(game_name, tag_line, region_override=region)
             if not puuid:
                 # Since we deferred above, we MUST use followup.send() from here on out!
-                await interaction.followup.send(f"⚠️ Could not find player {game_name} #{tag_line} on {server.upper()}. Check spelling!")
+                await interaction.followup.send(f"⚠️ Could not find player {safe_name} #{tag_line} on {server.upper()}. Check spelling!")
                 return
 
             # This call out get_live_match function from RiotAPIClient Class in riot_api.py.
@@ -381,11 +382,10 @@ class DraftCommands(commands.Cog):
                 await interaction.followup.send("⚠️ Could not locate user in match data.")
                 return
 
-            enemy_team_id = 200 if user_team == 100 else 100
-
             # Building the Discord Embed
+            enemy_team_id = 200 if user_team == 100 else 100
             bot_entries, player_results = await self._fetch_enemy_data(match_data, enemy_team_id, server, region)
-            embed = build_scout_embed(server, game_name, bot_entries, player_results, self.ai.meta_db)
+            embed = build_scout_embed(server, safe_name, bot_entries, player_results, self.ai.meta_db)
 
             await interaction.followup.send(embed=embed)
 
