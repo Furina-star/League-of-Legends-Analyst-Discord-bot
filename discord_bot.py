@@ -18,32 +18,11 @@ import requests
 from riot_api import RiotAPIClient
 from ai_wrapper import LeagueAI
 from utils.translator import DiscordTranslator
-import logging
 import traceback
 import config
-import sentry_sdk
+from utils.logger_algorithm import initialize_logger
 
-# This creates and print debugs logs properly.
-os.makedirs("logs", exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("logs/furina.log", encoding="utf-8"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Sentry.io setup for better logging
-Sentry = config.SENTRY_DSN
-if Sentry:
-    sentry_sdk.init(
-        dsn=Sentry,
-        # Set traces_sample_rate to 1.0 to capture 100% of errors for now
-        traces_sample_rate=1.0,
-    )
-    logger.info("Sentry Telemetry Online!")
+logger = initialize_logger()
 
 # Initiate Data Dragon dictionary API  as a function
 CACHE_FILE = "data/champion_cache.json"
@@ -81,15 +60,6 @@ def get_champion_mapping():
 
         return {} # Return an empty dictionary if everything fails
 
-# Initiate Roles from Champion_Roles.json as a function
-def load_meta_roles():
-    try:
-        with open('data/Champion_Roles.json', 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        logger.warning("CRITICAL: Could not find data/Champion_Roles.json!")
-        return {}
-
 # Creating a subclass of commands.Bot
 class DiscordBot(commands.Bot):
     def __init__(self):
@@ -107,8 +77,15 @@ class DiscordBot(commands.Bot):
 
         # Load JSON files safely in background threads
         def load_json(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except FileNotFoundError:
+                logger.error(f"CRITICAL: Could not find {filepath}!")
+                return {}
+            except json.JSONDecodeError:
+                logger.error(f"CRITICAL: Corrupt JSON file at {filepath}!")
+                return {}
 
         self.meta_db = await asyncio.to_thread(load_json, config.META_PATH)
         self.role_db = await asyncio.to_thread(load_json, config.ROLES_PATH)
@@ -123,9 +100,28 @@ class DiscordBot(commands.Bot):
         self.ai_system = LeagueAI()
 
         # Load Cogs (Make sure to load your new general_commands cog where /help is!)
-        await self.load_extension("cogs.draft_commands")
-        await self.load_extension("cogs.general_commands")
-        # await self.load_extension("cogs.general_commands") # Uncomment if you made this file!
+        try:
+            initial_extensions = [
+                "cogs.draft_commands",
+                "cogs.general_commands",
+                "cogs.stats_commands"
+            ]
+
+            print("Starting extension load...")
+
+            for extension in initial_extensions:
+                # Inner catch: Protects individual files
+                try:
+                    await self.load_extension(extension)
+                    print(f"Successfully loaded: {extension}")
+                except Exception as e:
+                    print(f"Failed to load {extension}: {e}")
+
+            print("Finished loading all extensions!")
+
+        except Exception as fatal_error:
+            # This only triggers if something goes horribly wrong with the loop itself
+            print(f"CRITICAL BOOT ERROR: {fatal_error}")
 
         # Sync Translator
         logger.info("Setting up Translator...")
@@ -186,6 +182,6 @@ if __name__ == "__main__":
     @bot.event
     async def on_ready():
         logger.info(f"Logged in as {bot.user.name}")
-        logger.info("Furina Architecture Online and Ready!")
+        logger.info("Furina is Online and Ready!")
 
     bot.run(config.DISCORD_TOKEN)

@@ -77,8 +77,7 @@ class DraftCommands(commands.Cog):
             # Get PUUID
             puuid = await self.riot.get_puuid(game_name, tag_line, region_override=region)
             if not puuid:
-                await interaction.followup.send(f"⚠️ Could not find player {game_name}#{tag_line} on {server.upper()}. Check spelling!",allowed_mentions=discord.AllowedMentions.none()
-                )
+                await interaction.followup.send(f"⚠️ Could not find player {game_name}#{tag_line} on {server.upper()}. Check spelling!",allowed_mentions=discord.AllowedMentions.none())
                 return
 
             # Get Live Match

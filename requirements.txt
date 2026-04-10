@@ -7,6 +7,7 @@ pytest==9.0.3
 # --- Security & Environment ---
 python-dotenv==1.2.2
 aiosqlite==0.22.1
+sentry-sdk==2.57.0
 
 # --- AI & Machine Learning (Inference Only) ---
 torch==2.11.0
