@@ -133,3 +133,34 @@ def format_team_display(team_picks: list, raw_team: list, meta_db: dict, champ_d
         bot_tag = "🤖 " if check_if_bot(c, raw_team, champ_dict) else ""
         display.append(f"{bot_tag}{c} `[{meta_wr:.1f}%]`")
     return display
+
+# Isolates a single player's stats from a match and calculates team totals
+def extract_postgame_stats(match_data: dict, puuid: str, match_id: str) -> dict:
+    queue_map = {
+        400: "Normal Draft", 420: "Ranked Solo/Duo", 430: "Normal Blind",
+        440: "Ranked Flex", 450: "ARAM", 490: "Quickplay",
+        700: "Clash", 900: "URF", 1700: "Arena"
+    }
+    raw_queue_id = match_data['info'].get('queueId', 0)
+    raw_game_mode = match_data['info'].get('gameMode', 'UNKNOWN')
+    real_game_mode = queue_map.get(raw_queue_id, raw_game_mode)
+
+    # Find the player and their team ID
+    player_stats = None
+    team_id = None
+    for participant in match_data['info']['participants']:
+        if participant['puuid'] == puuid:
+            team_id = participant['teamId']
+            # Attach our custom data
+            participant['gameDuration'] = match_data['info']['gameDuration']
+            participant['gameMode'] = real_game_mode
+            participant['matchId'] = match_id
+            player_stats = participant
+            break
+
+    # Calculate Team Kills (for KP%)
+    if player_stats and team_id is not None:
+        team_kills = sum(p.get('kills', 0) for p in match_data['info']['participants'] if p['teamId'] == team_id)
+        player_stats['teamKills'] = team_kills
+
+    return player_stats

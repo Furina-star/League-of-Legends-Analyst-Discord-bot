@@ -4,56 +4,13 @@ It takes in the relevant data and constructs a Discord Embed object with the app
 """
 
 import discord
-import re
 import random
 from typing import List, Tuple
 from utils.roasts import RoastGenerator
+from utils.tags import get_pregame_tags, get_performance_tags
 
 
-# Helper functions for _generate_player_tags
-# OTP and First timer detection
-def _get_mastery_tags(mastery: int, is_otp: bool = False) -> list:
-    if mastery >= 1000000:
-        return [] if is_otp else ["🦄 **OTP WARNING**"]
-    if mastery >= 500000:
-        return ["🛡️ **Main**"]
-    if mastery < 10000:
-        return ["🔰 **First Time / Very New**"]
-    return []
-
-# Meta slave and Troll detection
-def _get_meta_tags(meta_wr: float) -> list:
-    if meta_wr >= 0.525:
-        return ["🎯 **Meta Abuser**"]
-    if meta_wr <= 0.48:
-        return ["🤡 **Off-Meta / Troll**"]
-    return []
-
-
-# Winrate detection
-def _get_winrate_tags(rank: str) -> list:
-    tags = []
-
-    # Smurf Detection
-    if re.search(r"\b([7-9]\d|100)\.\d+%\s*WR", rank) and "Unranked" not in rank:
-        tags.append("🕵️ **SUSPECTED SMURF**")
-
-    # Tactical Winrate Analysis
-    match = re.search(r"([\d.]+)%\sWR\*\*\s\((\d+)\sgames\)", rank)
-    if match:
-        wr = float(match.group(1))
-        games = int(match.group(2))
-
-        if wr >= 60.0 and games >= 40:
-            tags.append("🔥 **1v9 Machine**")
-        elif wr <= 45.0 and games >= 30:
-            tags.append("🥶 **Tilted**")
-
-        if games >= 500 and 49.0 <= wr <= 51.0:
-            tags.append("🧱 **Hardstuck**")
-
-    return tags
-
+# Helper functions
 # Verdicts for post game review
 def _generate_furina_verdict(stats: dict) -> str:
     # Initialize the Roast Engine
@@ -116,7 +73,7 @@ def _generate_furina_verdict(stats: dict) -> str:
 
     return combo_roast
 
-# THe embed formatter sections
+# The embed formatter sections
 # For help commands in cogs
 def build_help_embed() -> discord.Embed:
     embed = discord.Embed(
@@ -176,24 +133,6 @@ def build_predict_embeds(blue_prob: float, red_prob: float,
 
     return blue_embed, red_embed
 
-# All what ifs to be used for build_scout_embed
-def _generate_player_tags(rank: str, mastery: int, is_duo: bool, meta_wr: float, is_otp=False, is_autofilled=False) -> str:
-    tags = []
-
-    if is_duo: tags.append("❤ **DUO**")
-    if is_otp: tags.append("👑 **TRUE OTP**")
-    if is_autofilled: tags.append("❓ **AUTOFILLED?**")
-
-    # Append all the helper functions above
-    tags.extend(_get_meta_tags(meta_wr))
-    tags.extend(_get_winrate_tags(rank))
-    tags.extend(_get_mastery_tags(mastery, is_otp))
-
-    # Join all tags into a single string, separated by " | ", and return it. If no tags, return an empty string.
-    if tags:
-        return f"\n**Tags:** {' | '.join(tags)}"
-    return ""
-
 # For scout command in cogs
 def build_scout_embed(server: str, game_name: str, bots: list, players: list, meta_db: dict) -> discord.Embed:
     embed = discord.Embed(
@@ -207,38 +146,65 @@ def build_scout_embed(server: str, game_name: str, bots: list, players: list, me
 
     for c_name, riot_id, rank, mastery, is_duo, keystone, is_otp, is_autofilled in players:
         meta_wr = meta_db.get(c_name, 0.50)
-        tag_string = _generate_player_tags(rank, mastery, is_duo, meta_wr, is_otp, is_autofilled)
+        tag_string = get_pregame_tags(mastery, is_otp, is_duo, is_autofilled, meta_wr, rank)
+        tag_display = f"\n**Tags:** {tag_string}" if tag_string else ""
 
         keystone_display = f" [{keystone}]" if keystone != "None" else ""
 
         embed.add_field(
             name=f"⚔️ {c_name}{keystone_display} - {riot_id}",
-            value=f"**Rank:** {rank}\n**Mastery:** {mastery:,} pts{tag_string}",
+            value=f"**Rank:** {rank}\n**Mastery:** {mastery:,} pts{tag_display}",
             inline=False
         )
 
     return embed
 
 # For last game command in cogs
-def build_lastgame_embed(server: str, riot_id: str, stats: dict) -> discord.Embed:
+def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: str) -> discord.Embed:
     win = stats.get('win', False)
     color = discord.Color.green() if win else discord.Color.red()
     title = "🏆 VICTORY" if win else "💀 DEFEAT"
 
+    # Get the stats and calculate
     champ = stats.get('championName', 'Unknown')
     kda = f"{stats.get('kills')}/{stats.get('deaths')}/{stats.get('assists')}"
     cs = stats.get('totalMinionsKilled', 0) + stats.get('neutralMinionsKilled', 0)
     damage = stats.get('totalDamageDealtToChampions', 0)
     gold = stats.get('goldEarned', 0)
+    game_mode = stats.get('gameMode', 'UNKNOWN MODE')
+    match_id = stats.get('matchId', 'UNKNOWN_ID')
+    vision = stats.get('visionScore', 0)
+    pink_wards = stats.get('visionWardsBoughtInGame', 0)
+    team_kills = stats.get('teamKills', 1)  # Fallback to 1 to prevent division by zero
+    kp_percent = ((stats.get('kills', 0) + stats.get('assists', 0)) / team_kills) * 100 if team_kills > 0 else 0
+    minutes = stats.get('gameDuration', 1) / 60.0
+    cs_per_min = cs / minutes if minutes > 0 else 0
+    perf_tags = get_performance_tags(stats)
+    tag_display = f"\n{perf_tags}" if perf_tags else ""
 
     # Get Furina's verdict about the player's performance based on the stats
     verdict = _generate_furina_verdict(stats)
 
+    # Header
     embed = discord.Embed(title=f"{title}: {riot_id} on {server.upper()}", color=color)
-    embed.add_field(name="Champion", value=f"**{champ}**", inline=True)
-    embed.add_field(name="KDA", value=f"**{kda}**", inline=True)
-    embed.add_field(name="CS & Damage", value=f"**{cs} CS** | **{damage:,} DMG**", inline=True)
-    embed.add_field(name="Gold", value=f"**{gold}**", inline=True)
-    embed.add_field(name="Furina's Verdict", value=f"*{verdict}*", inline=False)
+
+    embed.add_field(name="👤 Champion", value=f"**{champ}**{tag_display}", inline=True)
+    embed.add_field(name="⚔️ KDA", value=f"**{kda}**\n({kp_percent:.0f}% KP)", inline=True)
+    embed.add_field(name="💥 Damage", value=f"**{damage:,}** DMG", inline=True)
+
+    embed.add_field(name="🌾 Farming", value=f"**{cs} CS**\n({cs_per_min:.1f}/min)", inline=True)
+    embed.add_field(name="💰 Gold", value=f"**{gold:,}** G", inline=True)
+    embed.add_field(name="👁️ Vision", value=f"**{vision}** Score\n**{pink_wards}** Pinks", inline=True)
+
+    # Footer
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+    embed.add_field(name="⚖️ Furina's Verdict", value=f"*{verdict}*", inline=False)
+    embed.set_footer(text=f"Mode: {game_mode} | Match ID: {match_id}")
+
+    # Clean the champion's name
+    safe_champ_name = champ.replace(" ", "").replace("'", "").title()
+
+    # Set the thumbnail
+    embed.set_thumbnail(url=f"https://ddragon.leagueoflegends.com/cdn/{patch_version}/img/champion/{safe_champ_name}.png")
 
     return embed

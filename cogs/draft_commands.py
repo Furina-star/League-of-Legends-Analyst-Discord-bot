@@ -13,6 +13,7 @@ from utils.embed_formatter import build_predict_embeds, build_scout_embed
 from utils.views import PredictView
 from discord.utils import escape_mentions
 from utils.parsers import parse_riot_id, sort_team_roles, format_team_display
+from utils.discord_helpers import server_autocomplete
 
 # Get the logging system
 logger = logging.getLogger(__name__)
@@ -29,19 +30,6 @@ class DraftCommands(commands.Cog):
         self.server_dict = bot.server_dict
         self.role_db = role_db
         self.keystone_db = keystone_db
-
-    # Autocomplete logic for Scout and Predict
-    async def server_autocomplete(self, interaction: discord.Interaction, current: str) -> list[Choice[str | int | float]]:
-
-        # Get the keys from server dictionary
-        servers = list(self.server_dict.keys())
-
-        choices = [
-            app_commands.Choice(name=server.upper(), value=server.upper())
-            for server in servers if current.lower() in server.lower()
-        ]
-
-        return choices[:25]
 
     # Getting the Live game command.
     # Predict the win condition before the game starts

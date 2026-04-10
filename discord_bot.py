@@ -36,7 +36,7 @@ def get_champion_mapping():
             with open(CACHE_FILE) as f:
                 cached_data = json.load(f)
                 if cached_data.get("version") == latest_version:
-                    return cached_data.get("mapping")
+                    return cached_data.get("version"), cached_data.get("mapping")
 
         # If no cache exists, or the patch updated, download the heavy file
         champ_data = requests.get(f"https://ddragon.leagueoflegends.com/cdn/{latest_version}/data/en_US/champion.json",timeout=10).json()
@@ -47,7 +47,7 @@ def get_champion_mapping():
         os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
         with open(CACHE_FILE, "w") as f:
             json.dump({"version": latest_version, "mapping": id_to_name}, f, indent=4)
-        return id_to_name
+        return latest_version, id_to_name
 
     except Exception as e:
         logger.error(f"Data Dragon error: {e}")
@@ -56,9 +56,10 @@ def get_champion_mapping():
         if os.path.exists(CACHE_FILE):
             logger.warning("Network Failed: Falling back to old local cache.")
             with open(CACHE_FILE, "r") as f:
-                return json.load(f).get("mapping", {})
+                data = json.load(f)
+                return data.get("version", "14.8.1"), data.get("mapping", {})
 
-        return {} # Return an empty dictionary if everything fails
+        return "14.8.1", {} # Return an empty dictionary if everything fails
 
 # Creating a subclass of commands.Bot
 class DiscordBot(commands.Bot):
@@ -73,7 +74,7 @@ class DiscordBot(commands.Bot):
         logger.info("Running one-time setup...")
 
         # Run the blocking Data Dragon update in a background thread
-        self.champ_dict = await asyncio.to_thread(get_champion_mapping)
+        self.patch_version, self.champ_dict = await asyncio.to_thread(get_champion_mapping)
 
         # Load JSON files safely in background threads
         def load_json(filepath):
@@ -107,21 +108,21 @@ class DiscordBot(commands.Bot):
                 "cogs.stats_commands"
             ]
 
-            print("Starting extension load...")
+            logger.info("Starting extension load...")
 
             for extension in initial_extensions:
                 # Inner catch: Protects individual files
                 try:
                     await self.load_extension(extension)
-                    print(f"Successfully loaded: {extension}")
+                    logger.info(f"Successfully loaded: {extension}")
                 except Exception as e:
-                    print(f"Failed to load {extension}: {e}")
+                    logger.error(f"Failed to load {extension}: {e}")
 
-            print("Finished loading all extensions!")
+            logger.info("Finished loading all extensions!")
 
         except Exception as fatal_error:
             # This only triggers if something goes horribly wrong with the loop itself
-            print(f"CRITICAL BOOT ERROR: {fatal_error}")
+            logger.critical(f"CRITICAL BOOT ERROR: {fatal_error}")
 
         # Sync Translator
         logger.info("Setting up Translator...")
