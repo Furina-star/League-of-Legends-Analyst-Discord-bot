@@ -11,6 +11,7 @@ import random
 # The rules are organized into categories: Champion-Specific, Tragedy, Economy, Role-Specific, and Praise.
 class ParsedStats:
     def __init__(self, stats: dict):
+        # Base Stats
         self.champ = stats.get('championName', '')
         self.kills = stats.get('kills', 0)
         self.deaths = stats.get('deaths', 0)
@@ -24,10 +25,22 @@ class ParsedStats:
         self.cs = stats.get('totalMinionsKilled', 0) + stats.get('neutralMinionsKilled', 0)
         self.gold = stats.get('goldEarned', 0)
         self.vision_score = stats.get('visionScore', 0)
-        self.turrets = stats.get('turretTakedowns', 0)
-        self.dmg_taken = stats.get('totalDamageTaken', 0)
-        self.healing = stats.get('totalHealsOnTeammates', 0)
-        self.fb = stats.get('firstBloodKill', False)
+        self.healing = stats.get('totalHeal', 0)
+
+        # Advanced Calculated Stats (For Tags and Roasts!)
+        self.minutes = self.time / 60.0 if self.time > 0 else 1.0
+        self.cs_per_min = self.cs / self.minutes
+
+        self.team_kills = stats.get('teamKills', 1)
+        self.kp_percent = ((self.kills + self.assists) / self.team_kills) * 100 if self.team_kills > 0 else 0.0
+
+        # Objective & Milestone Stats
+        self.first_blood = stats.get('firstBloodKill', False)
+        self.pentas = stats.get('pentaKills', 0)
+        self.quadras = stats.get('quadraKills', 0)
+        self.turrets = stats.get('turretKills', 0)
+        self.stolen_objs = stats.get('objectivesStolen', 0)
+        self.dragons = stats.get('dragonKills', 0)
 
 # The dictionary containing all roasts and praises
 class RoastGenerator:
@@ -86,9 +99,9 @@ class RoastGenerator:
             (lambda: p.deaths >= 15, f"{p.deaths} deaths. Were you trying to break a world record, or did you just forget that your monitor was turned on? Absolutely tragic."),
             (lambda: p.kills == 0 and p.deaths >= 10, "Zero kills. Double-digit deaths. I am genuinely impressed by your ability to serve as a walking, breathing ATM for the enemy team."),
             (lambda: p.win and p.deaths >= 10 and p.kills < 4, "You won... but let us not pretend you had anything to do with it. You were merely a heavy backpack for your team to carry."),
-            (lambda: p.fb and not p.win and p.deaths >= 8, "You secured First Blood! ...And then proceeded to feed for the rest of the game. You peaked at minute three."),
+            (lambda: p.first_blood and not p.win and p.deaths >= 8, "You secured First Blood! ...And then proceeded to feed for the rest of the game. You peaked at minute three."),
             (lambda: p.kills > 12 and p.turrets == 0 and not p.win, f"You had {p.kills} kills and didn't touch a single tower. The Nexus is the objective, darling, not your KDA. Enjoy the defeat screen."),
-            (lambda: p.damage_taken > 50000 and p.deaths >= 10, f"You took {p.dmg_taken:,} damage. You weren't a tank, you were a piñata. And the enemy team beat the absolute candy out of you."),
+            (lambda: p.damage_taken > 50000 and p.deaths >= 10, f"You took {p.damage_taken:,} damage. You weren't a tank, you were a piñata. And the enemy team beat the absolute candy out of you."),
             (lambda: p.deaths <= 10 and p.kills <= 1, "At what point during your tenth trip back to the fountain did you realize that the enemy team was farming you like a cannon minion?",)
         ]
 
@@ -186,7 +199,7 @@ class RoastGenerator:
         p = self.p
         return [
             (lambda: p.kills == 0 and p.deaths == 0 and p.assists == 0 and p.time > 900, "0 kills. 0 deaths. 0 assists. Did your internet disconnect, or did you achieve true enlightenment and transcend the need to actually play the game?"),
-            (lambda: not p.fb and p.deaths >= 13 and p.time < 1500, "Dying 13 times in 25 minutes? You were not simply beaten; you were relentlessly bullied. I would sincerely suggest finding a new hobby. Perhaps gardening?"),
+            (lambda: not p.first_blood and p.deaths >= 13 and p.time < 1500, "Dying 13 times in 25 minutes? You were not simply beaten; you were relentlessly bullied. I would sincerely suggest finding a new hobby. Perhaps gardening?"),
             (lambda: p.vision_score > 100, "A vision score over 100! You were not playing a MOBA, you were operating a state-of-the-art surveillance network. Paranoia suits you, detective.")
         ]
 

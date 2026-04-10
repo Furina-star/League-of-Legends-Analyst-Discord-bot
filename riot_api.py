@@ -119,9 +119,11 @@ class RiotAPIClient:
         return 0
 
     # Initiate Match History API as a function
-    async def get_match_history(self, puuid, count=20, queue_id=420, region_override=None):
+    async def get_match_history(self, puuid, count=20, queue_id=None, region_override=None):
         r = region_override or self.region
-        url = f"https://{r}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?queue={queue_id}&start=0&count={count}"
+        url = f"https://{r}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={count}"
+        if queue_id is not None:
+            url += f"&queue={queue_id}"
         return await self._fetch(url, cache_ttl=300)
 
     # Initiate Match Details API as a function
@@ -132,6 +134,8 @@ class RiotAPIClient:
 
     # Initiate Top Masteries API as a function
     async def get_top_masteries(self, puuid: str, count: int = 3, platform_override: Optional[str] = None) -> list:
+        if not puuid or puuid == "None":
+            return []
         p = (platform_override or self.platform).lower()
         url = f"https://{p}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top?count={count}"
         data = await self._fetch(url, cache_ttl=3600)
@@ -159,6 +163,8 @@ class RiotAPIClient:
 
     # Initiate Rank API as a function
     async def get_summoner_rank(self, puuid: str, platform_override: Optional[str] = None) -> str:
+        if not puuid or puuid == "None":
+            return "Unranked"
         p = (platform_override or self.platform).lower()
         url = f"https://{p}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}"
 
@@ -214,7 +220,7 @@ class RiotAPIClient:
 
         # Fetch their last 5 ranked matches (costs 1 API call per player)
         mastery_task = self.get_champion_mastery(e_puuid, c_id, platform_override=server)
-        history_task = self.get_match_history(e_puuid, count=5, region_override=region)
+        history_task = self.get_match_history(e_puuid, count=5, queue_id=420, region_override=region)
 
         # Fetch their top mastery champion
         top_mastery_task = self.get_top_masteries(e_puuid, count=3, platform_override=server)

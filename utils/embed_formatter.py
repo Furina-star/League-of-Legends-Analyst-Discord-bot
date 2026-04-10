@@ -180,7 +180,6 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
     minutes = stats.get('gameDuration', 1) / 60.0
     cs_per_min = cs / minutes if minutes > 0 else 0
     perf_tags = get_performance_tags(stats)
-    tag_display = f"\n{perf_tags}" if perf_tags else ""
 
     # Get Furina's verdict about the player's performance based on the stats
     verdict = _generate_furina_verdict(stats)
@@ -188,7 +187,7 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
     # Header
     embed = discord.Embed(title=f"{title}: {riot_id} on {server.upper()}", color=color)
 
-    embed.add_field(name="👤 Champion", value=f"**{champ}**{tag_display}", inline=True)
+    embed.add_field(name="👤 Champion", value=f"**{champ}**", inline=True)
     embed.add_field(name="⚔️ KDA", value=f"**{kda}**\n({kp_percent:.0f}% KP)", inline=True)
     embed.add_field(name="💥 Damage", value=f"**{damage:,}** DMG", inline=True)
 
@@ -196,8 +195,14 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
     embed.add_field(name="💰 Gold", value=f"**{gold:,}** G", inline=True)
     embed.add_field(name="👁️ Vision", value=f"**{vision}** Score\n**{pink_wards}** Pinks", inline=True)
 
-    # Footer
+    if perf_tags:
+        # If they earned tags, display them across the bottom!
+        embed.add_field(name="🏷️ Match Tags", value=perf_tags, inline=False)
+
+    # one blank row above the verdict
     embed.add_field(name="\u200b", value="\u200b", inline=False)
+
+    # Footer
     embed.add_field(name="⚖️ Furina's Verdict", value=f"*{verdict}*", inline=False)
     embed.set_footer(text=f"Mode: {game_mode} | Match ID: {match_id}")
 

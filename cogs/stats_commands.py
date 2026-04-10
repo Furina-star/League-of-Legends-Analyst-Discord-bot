@@ -51,29 +51,29 @@ class StatsCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
+            region = self.server_dict[server]
+
             # Get the puuid
             puuid = await self.riot.get_puuid(game_name, tag_line, region_override=region)
             if not puuid:
                 await interaction.followup.send(
-                    f"⚠️ Could not find player {game_name}#{tag_line} on {server.upper()}. Check spelling!",
-                    allowed_mentions=discord.AllowedMentions.none())
+                    "⚠️ Could not find player. Check spelling!",allowed_mentions=discord.AllowedMentions.none())
                 return
+            match_region = "sea" if server in ["oc1", "ph2", "sg2", "th2", "tw2", "vn2"] else region
 
             # Get the most recent match ID
-            history = await self.riot.get_match_history(puuid, count=1, region_override=region)
+            history = await self.riot.get_match_history(puuid, count=1, region_override=match_region)
             if not history:
                 await interaction.followup.send("⚠️ This player has no recent games.")
                 return
-            match_id = history[0]
 
-            # Get the match details
-            match_data = await self.riot.get_match_details(match_id, region_override=region)
+            match_data = await self.riot.get_match_details(history[0], region_override=match_region)
             if not match_data:
                 await interaction.followup.send("⚠️ Could not fetch match details for this game.")
                 return
 
             # Find the player's stats in the match data, map the queue ID, and calculate the total kills for that team
-            player_stats = extract_postgame_stats(match_data, puuid, match_id)
+            player_stats = extract_postgame_stats(match_data, puuid, history[0])
 
             if not player_stats:
                 await interaction.followup.send("⚠️ Error parsing player data.")
