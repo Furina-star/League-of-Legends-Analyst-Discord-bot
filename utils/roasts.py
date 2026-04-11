@@ -65,7 +65,8 @@ class ParsedStats:
         self.dragons = stats.get('dragonKills', 0)
 
         # Get the Rival's stats
-        self.rival = stats.get('rivalStats', None)
+        rival_data = stats.get('rivalStats') or {}
+        self.rival = rival_data if rival_data else None
         if self.rival:
             self.r_dmg = self.rival.get('totalDamageDealtToChampions', 0)
             self.r_gold = self.rival.get('goldEarned', 0)
@@ -373,20 +374,22 @@ class RoastGenerator:
         p = self.p
         if not p.rival: return []
 
-        r = p.rival
+        r = p.rival or {}
         win = p.win
 
-        r_kills = r.get('kills', 0)
-        r_solo = r.get('soloKills', 0)
-        r_kp = (r_kills + r.get('assists', 0))
+        r_challenges = r.get('challenges') or {}
+        r_kills = int(r.get('kills', 0))
+        r_solo = int(r_challenges.get('soloKills', 0))
+        r_kp = r_kills + int(r.get('assists', 0))
 
         win_diffs = [
-            (lambda r=r_solo: p.solo_kills >= (r + 3), f"You solo-killed the {p.r_champ} at least 3 times more than they got you. A complete, humiliating mechanical gap."),
+            (lambda rsolo=r_solo: p.solo_kills >= (rsolo + 3), f"You solo-killed the {p.r_champ} at least 3 times more than they got you. A complete, humiliating mechanical gap."),
             (lambda: p.skillshots_dodged >= 25 and p.r_dmg < (p.damage / 3), f"You dodged {p.skillshots_dodged} skillshots while dealing triple their damage. It's like you were playing in slow motion while they struggled to keep up."),
             (lambda: p.gold > (p.r_gold + 6000), f"A 6,000 gold lead over the {p.r_champ}. You weren't playing a match; you were playing a tycoon simulator while they were in poverty.")
         ]
         loss_diffs = [
-            (lambda: r_solo >= (p.solo_kills + 3), f"The enemy {p.r_champ} solo-killed you 3 times more than you got them. I'd ask what happened, but it's clear you just forgot how to move your mouse."),
+            (lambda rsolo=r_solo: rsolo >= (p.solo_kills + 3),
+             f"The enemy {p.r_champ} solo-killed you 3 times more than you got them. I'd ask what happened, but it's clear you just forgot how to move your mouse."),
             (lambda: p.skillshots_dodged < 3 and p.r_dmg > (p.damage * 3) and p.damage > 0, f"You were hit by almost every ability the {p.r_champ} threw while dealing zero damage back. A stationary target would have been more difficult to kill."),
             (lambda: r_kills >= (p.kills + 12), f"The {p.r_champ} had 12 more kills than you. You weren't a rival; you were a background extra in their montage.")
         ]

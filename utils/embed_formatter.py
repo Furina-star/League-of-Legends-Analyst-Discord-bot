@@ -128,7 +128,12 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
 
     # Items
     items = [ITEM_DB.get(str(i), 'Unknown') for i in p.items if i != 0]
-    build_string = " • ".join(items) if items else "Empty"
+    if len(items) > 3:
+        row1 = " • ".join(items[:3])
+        row2 = " • ".join(items[3:])
+        build_string = f"{row1}\n{row2}"
+    else:
+        build_string = " • ".join(items) if items else "Empty"
     embed.add_field(name="🎒 Final Build", value=build_string, inline=False)
 
     # Performance Tags

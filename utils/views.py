@@ -28,7 +28,7 @@ class PredictView(discord.ui.View):
 # This class handles the button for '/postgame'
 class MatchCycleView(discord.ui.View):
     def __init__(self, riot_client, puuid, server, region, history, current_index, bot_version, full_riot_id):
-        super().__init__(timeout=120)
+        super().__init__(timeout=300) # = to 5 minutes of view time
         self.riot = riot_client
         self.puuid = puuid
         self.server = server
