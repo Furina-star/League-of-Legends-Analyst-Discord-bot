@@ -377,7 +377,7 @@ class RoastGenerator:
         r_kp = (r_kills + r.get('assists', 0))
 
         win_diffs = [
-            (lambda: p.solo_kills >= (r_solo + 3), f"You solo-killed the {p.r_champ} at least 3 times more than they got you. A complete, humiliating mechanical gap."),
+            (lambda r=r_solo: p.solo_kills >= (r + 3), f"You solo-killed the {p.r_champ} at least 3 times more than they got you. A complete, humiliating mechanical gap."),
             (lambda: p.skillshots_dodged >= 25 and p.r_dmg < (p.damage / 3), f"You dodged {p.skillshots_dodged} skillshots while dealing triple their damage. It's like you were playing in slow motion while they struggled to keep up."),
             (lambda: p.gold > (p.r_gold + 6000), f"A 6,000 gold lead over the {p.r_champ}. You weren't playing a match; you were playing a tycoon simulator while they were in poverty.")
         ]

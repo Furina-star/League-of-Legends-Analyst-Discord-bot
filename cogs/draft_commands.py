@@ -5,7 +5,6 @@ commands that analyze the live game, predict the win condition, and scout the en
 """
 import aiohttp
 import discord
-from discord.app_commands import Choice
 from discord.ext import commands
 from discord import app_commands
 import logging

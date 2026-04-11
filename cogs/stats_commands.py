@@ -5,7 +5,6 @@ This is the '/ last game' or post game review command.
 import discord
 from discord.ext import commands
 from discord import app_commands
-from discord.app_commands import Choice
 import logging
 from utils.parsers import parse_riot_id, extract_postgame_stats
 from utils.embed_formatter import build_lastgame_embed
@@ -57,15 +56,14 @@ class StatsCommands(commands.Cog):
                 await interaction.followup.send(
                     "⚠️ Could not find player. Check spelling!",allowed_mentions=discord.AllowedMentions.none())
                 return
-            match_region = "sea" if server in ["oc1", "ph2", "sg2", "th2", "tw2", "vn2"] else region
 
             # Get the most recent match ID
-            history = await self.riot.get_match_history(puuid, count=1, region_override=match_region)
+            history = await self.riot.get_match_history(puuid, count=1, region_override=region, server_context=server)
             if not history:
                 await interaction.followup.send("⚠️ This player has no recent games.")
                 return
 
-            match_data = await self.riot.get_match_details(history[0], region_override=match_region)
+            match_data = await self.riot.get_match_details(history[0], region_override=region, server_context=server)
             if not match_data:
                 await interaction.followup.send("⚠️ Could not fetch match details for this game.")
                 return

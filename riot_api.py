@@ -7,7 +7,7 @@ import aiohttp
 import asyncio
 import random
 import logging
-from typing import Optional, Union, Dict, Any, List
+from typing import Optional, Any
 from urllib.parse import quote
 from utils.cache import RiotCache
 from utils.parsers import parse_winrate, find_duos, detect_autofill, sort_team_roles
@@ -22,7 +22,7 @@ class RiotAPIClient:
         self.region = default_region
         self._session = None
         self.cache = RiotCache()
-        self._semaphore = asyncio.Semaphore(15)
+        self._semaphore = asyncio.Semaphore(5)
 
     # Set up the database when the bot starts
     async def setup_cache(self):
@@ -31,9 +31,15 @@ class RiotAPIClient:
     # Safely get or create session
     def _get_session(self):
         if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=10)
-            self._session = aiohttp.ClientSession(timeout=timeout)
+            self._session = aiohttp.ClientSession()
         return self._session
+
+    # List of servers that require 'sea' routing for matches
+    SEA_SERVERS = {"oc1", "ph2", "sg2", "th2", "tw2", "vn2"}
+    # Riot uses 'sea' routing for match history on SEA servers.
+    @staticmethod
+    def _resolve_region(server: str, region: str) -> str:
+        return "sea" if server.lower() in RiotAPIClient.SEA_SERVERS else region
 
     # Close the session when the bot shuts down
     async def close(self):
@@ -43,15 +49,46 @@ class RiotAPIClient:
         if hasattr(self, 'cache') and self.cache is not None:
             await self.cache.close()
 
+    # Error Handler Helper Function
+    @staticmethod
+    async def _handle_response(response, attempt, max_retries):
+        # 200 is the only success, everything else needs to be handled
+        if response.status == 200:
+            return "SUCCESS", await response.json()
+
+        # 429 means the Rate Limit exceeded
+        if response.status == 429:
+            retry_after = int(response.headers.get("Retry-After", 5))
+            logger.warning(f"[RATE LIMIT] Waiting {retry_after}s... (Attempt {attempt + 1}/{max_retries})")
+            await asyncio.sleep(retry_after)
+            return "RETRY", None
+
+        # 500 means there is an internal server error
+        if response.status >= 500:
+            sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)
+            logger.warning(f"[SERVER ERROR {response.status}] Retrying in {sleep_time:.2f}s...")
+            await asyncio.sleep(sleep_time)
+            return "RETRY", None
+
+        # 404 means the method is not allowed
+        if response.status == 404:
+            return "FAIL_SILENT", None
+
+        # 403 self-explanatory RIOT API is expired or invalid, what it said below.
+        if response.status == 403:
+            logger.error("[FORBIDDEN] API key expired or invalid. Check your RIOT_API_KEY.")
+            return "FAIL_FATAL", None
+
+        # Lastly log any other unexpected errors
+        logger.error(f"[API ERROR {response.status}] Failed to fetch.")
+        return "FAIL_FATAL", None
+
     # This function handles the API calls at its maximum efficiency while respecting rate limits and caching results to minimize unnecessary calls.
-    async def _fetch(self, url: str, max_retries: int = 3, cache_ttl: int = 0) -> Optional[
-        Union[Dict[str, Any], List[Any]]]:
-        # Check the cache first before making an API call! If cache_ttl is set to 0, we skip caching and always fetch fresh data.
+    async def _fetch(self, url: str, max_retries: int = 3, cache_ttl: int = 0):
         if cache_ttl > 0:
             cached_data = await self.cache.get(url)
             if cached_data: return cached_data
 
-        # The bouncer
         async with self._semaphore:
             headers = {"X-Riot-Token": self.api_key}
             session = self._get_session()
@@ -59,35 +96,19 @@ class RiotAPIClient:
             for attempt in range(max_retries):
                 try:
                     async with session.get(url, headers=headers, timeout=10) as response:
-                        # 200 means its good other than that it's an error like 429 below which gives Rate Limit Exceeded
-                        if response.status == 200:
-                            data = await response.json()
-                            # 2. Save successful fetches to the cache for next time!
-                            if cache_ttl > 0:
-                                await self.cache.set(url, data, ttl_seconds=cache_ttl)
+                        action, data = await self._handle_response(response, attempt, max_retries)
+
+                        if action == "SUCCESS":
+                            if cache_ttl > 0: await self.cache.set(url, data, ttl_seconds=cache_ttl)
                             return data
-                        # 429 means the API rate limit was exceeded, so we need to wait before retrying
-                        elif response.status == 429:
-                            retry_after = int(response.headers.get("Retry-After", 5))
-                            logger.warning(f"[RATE LIMIT] Waiting {retry_after}s... (Attempt {attempt + 1}/{max_retries})")
-                            await asyncio.sleep(retry_after)
-                        # Exponential backoff + Jitter for server errors
-                        elif response.status >= 500:
-                            sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)
-                            logger.warning(f"[SERVER ERROR {response.status}] Retrying in {sleep_time:.2f}s...")
-                            await asyncio.sleep(sleep_time)
-                        # This error is the API itself
-                        else:
-                            logger.error(f"[API ERROR {response.status}] Failed to fetch: {url}")
+                        if "FAIL" in action:
                             return None
 
-                # Catch actual internet drops and timeouts!
                 except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                     sleep_time = (2 ** attempt) + random.uniform(0.1, 1.0)
                     logger.warning(f"[NETWORK ERROR] {e}. Retrying in {sleep_time:.2f}s...")
                     await asyncio.sleep(sleep_time)
 
-        logger.warning(f"[MAX RETRIES] Gave up on fetching: {url}")
         return None
 
     # Initiate getting the PUUID of the player as a function
@@ -104,7 +125,7 @@ class RiotAPIClient:
     async def get_live_match(self, puuid: str, platform_override: Optional[str] = None) -> dict[str, Any] | list[Any] | None:
         p = platform_override or self.platform
         url = f"https://{p}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
-        return await self._fetch(url, cache_ttl=0)
+        return await self._fetch(url, cache_ttl=0, max_retries=1)
 
     # Initiate Champion Mastery API as a function
     async def get_champion_mastery(self, puuid: str, champ_id: int, platform_override: Optional[str] = None) -> int:
@@ -119,16 +140,20 @@ class RiotAPIClient:
         return 0
 
     # Initiate Match History API as a function
-    async def get_match_history(self, puuid, count=20, queue_id=None, region_override=None):
+    async def get_match_history(self, puuid, count=5, queue_id=None, region_override=None, server_context=None):
         r = region_override or self.region
+        if server_context:
+            r = self._resolve_region(server_context, r)
         url = f"https://{r}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={count}"
         if queue_id is not None:
             url += f"&queue={queue_id}"
         return await self._fetch(url, cache_ttl=300)
 
     # Initiate Match Details API as a function
-    async def get_match_details(self, match_id, region_override=None):
+    async def get_match_details(self, match_id, region_override=None, server_context=None):
         r = region_override or self.region
+        if server_context:
+            r = self._resolve_region(server_context, r)
         url = f"https://{r}.api.riotgames.com/lol/match/v5/matches/{match_id}"
         return await self._fetch(url, cache_ttl=86400)
 
@@ -198,10 +223,6 @@ class RiotAPIClient:
         mastery_tasks = [self.get_champion_mastery(puuid, c_id, platform_override=server) for puuid, _, c_id in players]
 
         wr_results = await asyncio.gather(*wr_tasks)
-
-        # Pause for exactly 1 second to let Riot's 20-per-second limit reset
-        await asyncio.sleep(1.0)
-
         masteries = await asyncio.gather(*mastery_tasks)
 
         winrates = [parse_winrate(res) for res in wr_results]
@@ -226,19 +247,14 @@ class RiotAPIClient:
         top_mastery_task = self.get_top_masteries(e_puuid, count=3, platform_override=server)
 
         async def get_rank():
-            await asyncio.sleep(1.5)
             return await self.get_summoner_rank(e_puuid, platform_override=server)
 
         mastery, rank, history, top_masteries = await asyncio.gather(
             mastery_task, get_rank(), history_task, top_mastery_task
         )
 
-        # Safety fallback if history fails to load
-        if not isinstance(history, list):
-            history = []
-
         # Reuse already-fetched history IDs, get_match_details is cached 24h so repeat calls are free
-        primary_role = await self.get_primary_role_from_history(history, e_puuid, region)
+        primary_role = await self.get_primary_role_from_history(history or [], e_puuid, region)
         is_autofilled = detect_autofill(primary_role, inferred_position)
 
         is_otp = False
@@ -264,9 +280,9 @@ class RiotAPIClient:
 
         # Build a position lookup: championId -> inferred position string
         sorted_champ_names = sort_team_roles(enemy_participants, champ_dict, role_db)
-        INDEX_TO_POSITION = {0: "TOP", 1: "JUNGLE", 2: "MIDDLE", 3: "BOTTOM", 4: "UTILITY"}
+        index_to_position = {0: "TOP", 1: "JUNGLE", 2: "MIDDLE", 3: "BOTTOM", 4: "UTILITY"}
         champ_to_position = {
-            name: INDEX_TO_POSITION[i] for i, name in enumerate(sorted_champ_names)
+            name: index_to_position[i] for i, name in enumerate(sorted_champ_names)
         }
 
         for p in enemy_participants:
@@ -321,4 +337,4 @@ class RiotAPIClient:
                         role_counts[role] = role_counts.get(role, 0) + 1
                     break
 
-        return max(role_counts, key=role_counts.get) if role_counts else ""
+        return max(role_counts.items(), key=lambda item: item[1])[0] if role_counts else ""
