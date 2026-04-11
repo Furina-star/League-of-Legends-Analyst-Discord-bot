@@ -162,7 +162,7 @@ class RoastGenerator:
             (lambda: p.damage_taken > 50000 and p.deaths >= 10, f"You took {p.damage_taken:,} damage. You weren't a tank, you were a piñata. And the enemy team beat the absolute candy out of you."),
             (lambda: p.deaths <= 10 and p.kills <= 1, "At what point during your tenth trip back to the fountain did you realize that the enemy team was farming you like a cannon minion?"),
             (lambda: p.gold > 15000 and p.item_count <= 3 and p.time > 1500, "You finished the game with 15,000 gold and only three items. Are you trying to take that gold with you into the next match? Spend your fortune, you miser!"),
-            (lambda: p.gold > p.rival.get('goldEarned', 0) + 3000 and p.damage < p.r_dmg and not p.win, f"You had a 3,000 gold lead over the {p.r_champ} and still dealt less damage. You are the definitive proof that a large bank account cannot compensate for a lack of mechanical soul."),
+            (lambda: p.rival is not None and p.gold > p.r_gold + 3000 and p.damage < p.r_dmg and not p.win, f"You had a 3,000 gold lead over the {p.r_champ} and still dealt less damage. You are the definitive proof that a large bank account cannot compensate for a lack of mechanical soul."),
             (lambda: p.role in ['MIDDLE', 'BOTTOM'] and p.gold < 8000 and p.time > 1500, "A carry with less than 8k gold at 25 minutes? You weren't a threat; you were a charity case. I've seen more financial stability in a dumpster fire."),
             (lambda: p.gold > 14000 and p.deaths >= 8 and not p.win, "You amassed a fortune and then proceeded to hand it over to the enemy team in 1,000-gold increments. You aren't a player; you're a high-stakes stimulus package for the opposition.")
         ]
@@ -239,7 +239,7 @@ class RoastGenerator:
             "Are you absolutely certain you were playing League of Legends? Your stats suggest you were merely on a leisurely stroll through the jungle while your team fought a war.",
             "Look at this damage chart. Were you aggressively farming the Krugs while your team fought for their lives? A masterclass in pacifism.",
             "You dealt less damage than an angry cannon minion. I am genuinely curious what you were doing for the past 30 minutes.",
-            "A completely victimless game from you. You refused to hurt anyone. How noble, and how utterly useless."
+            "A completely victimless game from you. You refused to hurt anyone. How noble, and how utterly useless.",
             "You played a carry role and dealt less damage than the Support's ignite. I suggest you apologize to your keyboard for wasting its mechanical life cycle.",
             "Your presence on the map was essentially a rumor. The enemy team didn't even buy armor because they simply didn't consider you a threat.",
             "I've seen more aggressive behavior from a scuttle crab. You spent 30 minutes in a high-stakes arena and somehow remained a complete pacifist.",
@@ -394,7 +394,7 @@ class RoastGenerator:
         return [
             (lambda: p.rival.get('deaths', 1) == 0 and p.time > 1200, f"You allowed the enemy {p.r_champ} to finish the game with absolutely zero deaths. You were less of a lane opponent and more of a harmless spectator."),
             (lambda: p.rival.get('kills', 0) >= (p.kills + 10), f"The enemy {p.r_champ} secured at least 10 more kills than you. They were the main character of this match, and you were merely their collateral damage."),
-            (lambda: p.role == 'JUNGLE' and (p.rival.get('kills', 0) + p.rival.get('assists', 0)) > ((p.kills + p.assists) * 2) and (p.kills + p.assists) > 0, f"The enemy {p.r_champ} had more than double your kill participation. They were orchestrating map-wide destruction while you were apparently playing a cozy forest exploration game."),
+            (lambda: p.role == 'JUNGLE' and (p.kills + p.assists) > 0 and (p.rival.get('kills', 0) + p.rival.get('assists', 0)) > ((p.kills + p.assists) * 2), f"The enemy {p.r_champ} had more than double your kill participation. They were orchestrating map-wide destruction while you were apparently playing a cozy forest exploration game."),
             (lambda: p.damage > p.r_dmg and p.gold > p.r_gold and not p.win, f"You dealt more damage and earned more gold than the enemy {p.r_champ}, yet you still managed to lose. Having the statistical advantage means absolutely nothing if you lack the macro intellect to use it."),
             (lambda: p.r_gold > p.gold and p.r_cs > p.cs and p.rival.get('kills', 0) > p.kills and p.r_dmg > p.damage, f"Out-damaged, out-farmed, out-funded, and out-killed by the {p.r_champ}. An absolute, flawless gap in every single measurable category. You did not just lose; you were a tutorial bot."),
             (lambda: p.r_dmg > (p.damage * 2) and p.damage > 0, f"The enemy {p.r_champ} dealt more than double your damage. You did not just lose your lane, you were mathematically eclipsed by a superior player."),
@@ -432,7 +432,7 @@ class RoastGenerator:
             "Justice is served, and your Nexus stands. A perfectly adequate, if painfully uninspired, performance.",
             "I suppose I should offer a polite, lukewarm golf clap. *Clap.* There. Do not let it go to your head.",
             "You survived the stage today. The Oratrice has spared you my wrath... for now.",
-            "A win is a win. Even the nameless extras in the background get to bow at the end of the play."
+            "A win is a win. Even the nameless extras in the background get to bow at the end of the play.",
             "The Oratrice remains silent, as does the audience. A victory achieved through sheer, unadulterated boredom.",
             "Bravo! You managed to win while being as exciting as a wet piece of cardboard. Truly, a unique talent.",
             "You won, but I shall be the one taking the bows. After all, it was my guidance that kept you from tripping over your own feet.",
@@ -456,7 +456,7 @@ class RoastGenerator:
             "Defeat. If this were a real opera in Fontaine, you would have been booed off the stage by the second act.",
             "You lost. As your director, I am seriously considering recasting your role for the next match.",
             "An utterly flavorless defeat. Even a true tragedy requires a hero; you were merely a bystander to your own demise.",
-            "I expected a magnificent collapse, a dramatic final stand! Instead, you just... quietly surrendered. How incredibly boring."
+            "I expected a magnificent collapse, a dramatic final stand! Instead, you just... quietly surrendered. How incredibly boring.",
             "The Oratrice Mecanique d'Analyse Cardinale is not amused, and frankly, neither am I. Exit stage left, immediately!",
             "A tragedy without a climax is just a waste of a good costume. You should be ashamed of this narrative pacing.",
             "You lost, and you did it without a single shred of dignity. I’ve seen better footwork from a Geovishap Hatchling.",
