@@ -86,16 +86,21 @@ class PerformanceTagEngine:
     def _macro_rules(self) -> list:
         p = self.p
         return [
-            (lambda: p.first_blood, "🩸 **First Blood**"),
+            (lambda: p.first_blood and not p.win, "🩸 **False Hope**"),
+            (lambda: p.first_blood and p.win, "🩸 **The Opening Act**"),
             (lambda: p.cs_per_min >= 9.0, "🚜 **Farmer**"),
             (lambda: p.cs_per_min >= 10.0 and p.cs >= 250, "🔥 **Flame Horizon**"),
-            (lambda: 8.5 <= p.cs_per_min < 10.0, "🌾 **CS Master**"),
+            (lambda: 8.5 <= p.cs_per_min < 10.0, "🌾 **Agricultural Prodigy**"),
             (lambda: p.turrets >= 3, "🪓 **Lumberjack**"),
-            (lambda: p.turrets >= 4, "🏗️ **Demolition Expert**"),
-            (lambda: p.turrets >= 6, "💣 **DESTROYER**"),
-            (lambda: p.stolen_objs > 0, "🥷 **Objective Thief**"),
+            (lambda: p.turrets == 4 or p.turrets == 5, "🏗️ **Aggressive Urban Renewal**"),
+            (lambda: p.turrets >= 6, "💣 **One-Man Siege Engine (6+ Turrets)**"),
+            (lambda: p.turrets == 0 and p.role in ['TOP', 'MIDDLE', 'BOTTOM'] and p.minutes > 25,"🏢 **Allergic to Real Estate**"),
+            (lambda: p.stolen_objs >= 2, "🦅 **Grand Theft Objective**"),
+            (lambda: p.stolen_objs == 1, "🥷 **Opportunistic Thief**"),
             (lambda: p.dragons >= 3, "🐉 **Dragon Slayer**"),
-            (lambda: p.dragons >= 4, "🐉 **Dragon Master**")
+            (lambda: p.dragons >= 4, "🐉 **Soul Collector**"),
+            (lambda: p.dragons == 0 and p.role == 'JUNGLE' and p.minutes > 20, "🦎 **Reptile Phobia**"),
+            (lambda: p.turrets == 0 and p.dragons == 0 and p.stolen_objs == 0 and p.minutes > 20 and p.role != 'UTILITY', "🤪 **Zero Macro**"),
         ]
 
     def _utility_rules(self) -> list:
@@ -161,7 +166,6 @@ class PerformanceTagEngine:
         p = self.p
         return [
             (lambda: p.role == 'JUNGLE' and p.stolen_objs >= 2, "🦅 **Elder Thief**"),
-            (lambda: p.role == 'JUNGLE' and p.dragons >= 4, "🐉 **Soul Collector**"),
             (lambda: p.role == 'JUNGLE' and p.cs_per_min < 3.0 and p.minutes > 20,
              "🗺️ **Full Clear? Never Heard Of It**"),
             (lambda: p.role == 'JUNGLE' and p.kills + p.assists >= 20 and p.deaths <= 3, "🌪️ **Ganking Machine**"),
@@ -189,6 +193,75 @@ class PerformanceTagEngine:
             (lambda: p.vision_wards >= 20, "🔭 **Surveillance State**"),
         ]
 
+    def _dodging_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.skillshots_dodged >= 40, "🕊️ **Touhou Player**"),
+            (lambda: p.skillshots_dodged >= 25, "🕺 **Untouchable (Neo)**"),
+            (lambda: p.dodge_streak >= 15, "💨 **The Wind**"),
+            (lambda: p.dodge_streak >= 10, "⚡ **Ultra Instinct**"),
+            (lambda: p.skillshots_dodged < 5 and p.deaths >= 8, "🧲 **Skillshot Magnet**"),
+            (lambda: p.skillshots_dodged == 0 and p.damage_taken > 30000, "🎯 **Stationary Target**")
+        ]
+
+    def _solo_kill_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.solo_kills >= 6, "🥊 **Undisputed Champion**"),
+            (lambda: p.solo_kills >= 4, "⚔️ **Grand Duelist**"),
+            (lambda: p.solo_kills >= 2 and p.role == 'UTILITY', "🔪 **Support Assassin**"),
+            (lambda: p.solo_kills == 0 and p.kills >= 10 and not p.win, "🦅 **Vulture (No Solo Kills)**"),
+            (lambda: p.solo_kills == 0 and p.deaths >= 8, "🐑 **Helpless Prey**")
+        ]
+
+    def _kda_extreme_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.kda >= 15.0, "👑 **Untouchable Royalty**"),
+            (lambda: p.kda >= 10.0, "📐 **Surgically Precise**"),
+            (lambda: 0 < p.kda <= 0.5 and p.minutes > 15, "🤡 **Circus Performer**"),
+            (lambda: p.kda < 1.0 and p.minutes > 15, "🏧 **Walking ATM**"),
+            (lambda: (p.kills + p.assists) == 0 and p.deaths >= 5, "📉 **Absolute Zero**")
+        ]
+
+    def _lane_dominance_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.cs_advantage >= 75 and p.role in ['TOP', 'MIDDLE', 'BOTTOM'], "🏰 **Evicted Opponent**"),
+            (lambda: p.cs_advantage <= -75 and p.role in ['TOP', 'MIDDLE', 'BOTTOM'], "🎒 **Lunch Money Stolen**"),
+            (lambda: p.plates >= 7, "🏦 **Grand Larceny (8+ Plates)**"),
+            (lambda: p.plates == 0 and p.cs_advantage <= -40 and p.role in ['TOP', 'MIDDLE'] and p.minutes > 15, "🛡️ **Pathological Coward**")
+        ]
+
+    def _combat_output_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.team_damage_pct >= 0.40 and p.win, "🌋 **Atlas (Carrying the World)**"),
+            (lambda: p.team_damage_pct <= 0.10 and p.role not in ['UTILITY', 'JUNGLE'] and p.minutes > 20, "💤 **Statistically Irrelevant**"),
+            (lambda: p.dpm >= 1000.0, "☄️ **Calamity Level Threat**"),
+            (lambda: p.dpm <= 250.0 and p.role not in ['UTILITY'] and p.minutes > 20, "🧘 **Aggressive Pacifist**")
+        ]
+
+    def _clutch_factor_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.lucky_survivals >= 3, "✨ **Protagonist Plot Armor**"),
+            (lambda: p.lucky_survivals == 0 and p.deaths >= 12, "🪦 **Speedrunning the Grey Screen**"),
+            (lambda: p.outnumbered_kills >= 4, "🎬 **Action Movie Star**")
+        ]
+
+    def _theatrical_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.win and p.deaths == 0 and p.team_damage_pct <= 0.08 and p.kp_percent < 20.0,"👑 **Masquerade of the Guilty**"),
+            (lambda: p.assists >= 25 and p.kp_percent >= 80.0 and p.kills <= 3, "🌊 **Director of the Salon**"),
+            (lambda: p.first_blood and not p.win and p.deaths >= 10, "⚖️ **Condemned by the Oratrice (FB + 10 Deaths)**"),
+            (lambda: p.damage_taken >= 50000 and p.deaths <= 3 and p.lucky_survivals >= 4, "🎭 **The Show Must Go On!**"),
+            (lambda: p.vision_score >= 120, "🗞️ **The Steambird's Lead Reporter**"),
+            (lambda: p.healing >= 30000 and p.damage >= 40000, "💧 **Perfect Pneuma/Ousia Alignment**"),
+            (lambda: p.win and p.deaths == 0 and p.kills >= 15 and p.kp_percent >= 60.0,"👏 **Furina Applauds**"),
+        ]
+
     def get_all_rules(self) -> list:
         return (
                 self._carry_rules() +
@@ -200,7 +273,14 @@ class PerformanceTagEngine:
                 self._roast_rules() +
                 self._anomaly_rules() +
                 self._economy_rules() +
-                self._support_rules()
+                self._support_rules() +
+                self._dodging_rules() +
+                self._solo_kill_rules() +
+                self._kda_extreme_rules() +
+                self._combat_output_rules() +
+                self._lane_dominance_rules() +
+                self._clutch_factor_rules() +
+                self._theatrical_rules()
         )
 
     # Format and generate the final tag string based on the rules

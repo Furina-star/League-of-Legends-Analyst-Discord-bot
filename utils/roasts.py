@@ -6,7 +6,9 @@ The roasts can contain {champion} which will be replaced with the champion name 
 """
 
 import random
+from itertools import chain
 from utils.data_loader import ITEM_NAME_TO_ID
+from utils.champion_roast import CHAMPION_DATABASE
 
 # Roast and Praise dictionary
 # The rules are organized into categories: Champion-Specific, Tragedy, Economy, Role-Specific, and Praise.
@@ -29,6 +31,19 @@ class ParsedStats:
         self.gold = stats.get('goldEarned', 0)
         self.vision_score = stats.get('visionScore', 0)
         self.healing = stats.get('totalHeal', 0)
+
+        # Challenge Stats (For Extra Tags and Roasts!)
+        self.challenges = stats.get('challenges', {})
+        self.skillshots_dodged = self.challenges.get('skillshotsDodged', 0)
+        self.solo_kills = self.challenges.get('soloKills', 0)
+        self.dodge_streak = self.challenges.get('maxDodgeSteak', 0)  # Yes, Riot typos it as 'steak'
+        self.kda = self.challenges.get('kda', 0.0)
+        self.team_damage_pct = self.challenges.get('teamDamagePercentage', 0.0)
+        self.dpm = self.challenges.get('damagePerMinute', 0.0)
+        self.cs_advantage = self.challenges.get('maxCsAdvantageOnLaneOpponent', 0)
+        self.plates = self.challenges.get('turretPlatesTaken', 0)
+        self.lucky_survivals = self.challenges.get('survivedSingleDigitHpCount', 0)
+        self.outnumbered_kills = self.challenges.get('outnumberedKills', 0)
 
         # Advanced Calculated Stats (For Tags and Roasts!)
         self.minutes = self.time / 60.0 if self.time > 0 else 1.0
@@ -70,8 +85,10 @@ class ParsedStats:
         self.keystone_id = None
         try:
             self.keystone_id = str(stats['perks']['styles'][0]['selections'][0]['perk'])
+            self.primary_style = stats['perks']['styles'][0]['style']  # Tracks Precision, Domination, etc.
         except (KeyError, IndexError):
-            pass
+            self.keystone_id = None
+            self.primary_style = None
 
     # Calculates a rough performance letter grade.
     def get_grade(self) -> str:
@@ -107,49 +124,11 @@ class RoastGenerator:
 
     def _champion_rules(self) -> list:
         p = self.p
-        champ_map = {
-            "Yasuo": [(lambda: p.deaths >= 10, "Ah, the legendary 0/10 Yasuo powerspike. Truly a masterclass in absolute predictability.")],
-            "Yuumi": [(lambda: p.damage < 3000, "You played Yuumi. I hope whatever movie you were watching on your second monitor was entertaining.")],
-            "Teemo": [(lambda: True, "You played Teemo. You have already sacrificed your dignity and the respect of your peers.")],
-            "Garen": [(lambda: p.win, "Spin. Win. The limits of your intellectual capacity are truly inspiring. How hard was it to press E?")],
-            "Vayne": [(lambda: p.deaths >= 8, "Tumbling forward into five enemies and instantly dying does not make you 'mechanically gifted'.")],
-            "Volibear": [(lambda: True, "You played Volibear. I assume your strategy consisted of turning your brain completely off and mashing your keyboard with a closed fist.")],
-            "Mordekaiser": [(lambda: True, "Ah, Mordekaiser. You missed your pull, you missed your slam, but your passive aura killed them anyway while you stood completely still.")],
-            "Sett": [(lambda: True, "You played Sett. You absorbed 5,000 damage to the face simply because you lack the mechanics to dodge, and then pressed a single button to win the fight.")],
-            "Riven": [(lambda: True, "You picked Riven. I'm sure you spent hours in the practice tool perfecting your 'animation cancels,' only to break your fingers in a real match.")],
-            "Samira": [(lambda: p.deaths >= 8, "Let me guess: you dashed into five people, mashed all your buttons trying to get an S rank, and instantly died to a single stun.")],
-            "Gangplank": [(lambda: True, "Ah, Gangplank. You spent 30 minutes playing a fruit-eating barrel minigame only to completely panic and miss your one important combo in the final team fight.")],
-            "Viego": [(lambda: True, "Viego. How pathetic that you can only secure kills by stealing the identities of players who are actually better than you.")],
-            "Yone": [(lambda: p.deaths >= 10, "Yone. You missed your ultimate, missed your Q3, snapped back to your E, and still somehow managed to die. The wind brothers truly are a plague upon this game.")],
-            "Lee Sin": [(lambda: p.damage < 15000, "A blind monk played by a blind summoner. Your 'Insec' attempts were closer to an acrobatic suicide routine than an actual gank.")],
-            "Lux": [(lambda: p.role == "UTILITY" and p.vision_score < 15, "A Lux 'Support' who builds full AP, misses every binding, and refuses to ward. You are not a support, you are a failed Mid Laner in denial.")],
-            "Briar": [(lambda: p.deaths >= 10, "You pressed W and went completely AFK while your champion sprinted directly into the enemy fountain. Truly, the pinnacle of interactive gameplay.")],
-            "Katarina": [(lambda: p.assists == 0 and p.kills > 0 and not p.win, "You mashed your forehead on the keyboard, got a few resets, and still lost the game. Your mechanics are as hollow as your macro.")],
-            "Zed": [(lambda: p.kills < 10, "Ah, Zed. You pressed R, missed all three of your shurikens, and swapped back to your shadow to watch your target walk away completely unharmed. So much edge, yet entirely dull.")],
-            "Sylas": [(lambda: not p.win, "Sylas. You stole the enemy's ultimate because you lack an identity of your own, and then you completely missed it. A plagiarist and a failure.")],
-            "Irelia": [(lambda: p.deaths >= 8, "Ah, Irelia. You dashed through five minions, missed your stun, and immediately died under the enemy tower. Truly a mechanical prodigy trapped in a tragic reality.")],
-            "Dr. Mundo": [(lambda: True, "You played Dr. Mundo. You turned your brain completely off, pressed your ultimate, and simply walked in a straight line. I am amazed you remembered to plug your keyboard in today.")],
-            "Shen": [(lambda: not p.win, "You played Shen. You spent the entire game staring at your team's health bars instead of your own screen, only to ultimate the 0/10 ADC. A truly noble, completely useless sacrifice.")],
-            "K'Sante": [(lambda: p.deaths >= 8, "You played K'Sante. You have a shield, a dash, unstoppable frames, true damage, and a kidnapping tool, yet you still managed to feed. Did you forget to read your champion's 40-page essay of a kit?")],
-            "Darius": [(lambda: p.time > 1800 and not p.win, "You played Darius. Let me guess: you won your lane by pressing Q, then spent the next 20 minutes getting kited to death by the ADC because you don't know what a flank is. A classic tale.")],
-            "Seraphine": [(lambda: True, "You picked Seraphine. I assume you spent the entire game sitting three screens away, missing your ultimate on a stationary target, and stealing your ADC's farm. A performance to truly silence the crowd.")],
-            "Sona": [(lambda: p.deaths >= 8, "You played Sona. You are essentially a highly musical caster minion. I hope rolling your face across Q, W, and E was mentally stimulating enough for you before you inevitably exploded.")],
-            "Singed": [(lambda: True, "You locked in Singed. You didn't log in to play League of Legends, you logged in to run in circles and farm proxy waves while everyone else played a completely different video game. Absolute sociopathic behavior.")],
-            "Aurelion Sol": [(lambda: p.time < 1500 and not p.win, "You picked Aurelion Sol and the game ended before 25 minutes. A majestic, cosmic dragon reduced to a glorified lizard who couldn't scale fast enough to matter.")],
-            "Mel": [(lambda: not p.win, "You played Mel. You tried to play politics and manipulate the board, only to realize that a fed enemy Top Laner simply does not care about your diplomatic immunity. A tragic miscalculation.")],
-            "Ambessa": [(lambda: p.deaths >= 8, "Ambessa Medarda. You charged in screaming about Noxian superiority, only to be immediately crowd-controlled and swatted like a fly. Truly a terrifying warlord.")],
-            "Jinx": [(lambda: p.deaths >= 10, "You picked Jinx. You clearly watched the show and thought you could replicate the magic. Instead, you just gave the enemy team 300 gold repeatedly. Stick to Netflix.")],
-            "Vi": [(lambda: p.deaths > p.kills, "Vi stands for 'Violence', not 'Victim'. You punched exactly one person, got instantly deleted, and left your team in a 4v5. Brilliant police work.")],
-            "Caitlyn": [(lambda: p.damage < 15000, "A sniper with the longest range in the game, and yet you dealt absolutely zero damage. Were your bullets made of foam, or did you simply forget to pull the trigger?")],
-            "Hwei": [(lambda: p.damage < 15000, "Ah, Hwei. You spent the entire game mixing paints and calculating the perfect combination of 10 different spells, just to deal absolutely zero damage. A true starving artist.")],
-            "Smolder": [(lambda: p.time < 1500 and not p.win, "You picked a late-game baby dragon and lost before you could even learn how to breathe fire. A tragic reptilian failure.")],
-            "Shaco": [(lambda: True, "You picked Shaco. You didn't log in to win, you logged in to make nine other people utterly miserable. I respect the pure malice.")],
-            "Master Yi": [(lambda: p.kills >= 15, "Ah, a fed Master Yi. You pressed Q repeatedly and the enemy team fell over. Shall we throw a parade for such unparalleled mechanical brilliance?")],
-            "Tryndamere": [(lambda: p.turrets == 0, "You played Tryndamere and took zero towers. Your one job—your singular purpose in this universe—is to hit stationary buildings, and you failed. Utterly embarrassing.")],
-            "Bel'Veth": [(lambda: p.time > 1800 and not p.win, "You are the Empress of the Void. You are meant to swallow the world. Instead, you slapped people at mach speed for 30 minutes and lost. A rather underwhelming apocalypse.")]
-        }
 
-        return champ_map.get(p.champ, [])
+        # Get the Champion Roast Dictionary
+        rules = CHAMPION_DATABASE.get(p.champ, [])
+
+        return [(lambda c=condition: c(p), verdict) for condition, verdict in rules]
 
     def _tragedy_rules(self) -> list:
         p = self.p
@@ -160,7 +139,7 @@ class RoastGenerator:
             (lambda: p.deaths >= 15, f"{p.deaths} deaths. Were you trying to break a world record, or did you just forget that your monitor was turned on? Absolutely tragic."),
             (lambda: p.kills == 0 and p.deaths >= 10, "Zero kills. Double-digit deaths. I am genuinely impressed by your ability to serve as a walking, breathing ATM for the enemy team."),
             (lambda: p.damage_taken > 50000 and p.deaths >= 10, f"You took {p.damage_taken:,} damage. You weren't a tank, you were a piñata. And the enemy team beat the absolute candy out of you."),
-            (lambda: p.deaths <= 10 and p.kills <= 1, "At what point during your tenth trip back to the fountain did you realize that the enemy team was farming you like a cannon minion?"),
+            (lambda: p.deaths >= 10 and p.kills <= 1 and p.kp_percent < 20.0, "At what point during your tenth trip back to the fountain did you realize that the enemy team was farming you like a cannon minion? You participated in nothing and fed everyone."),
             (lambda: p.gold > 15000 and p.item_count <= 3 and p.time > 1500, "You finished the game with 15,000 gold and only three items. Are you trying to take that gold with you into the next match? Spend your fortune, you miser!"),
             (lambda: p.rival is not None and p.gold > p.r_gold + 3000 and p.damage < p.r_dmg and not p.win, f"You had a 3,000 gold lead over the {p.r_champ} and still dealt less damage. You are the definitive proof that a large bank account cannot compensate for a lack of mechanical soul."),
             (lambda: p.role in ['MIDDLE', 'BOTTOM'] and p.gold < 8000 and p.time > 1500, "A carry with less than 8k gold at 25 minutes? You weren't a threat; you were a charity case. I've seen more financial stability in a dumpster fire."),
@@ -284,7 +263,7 @@ class RoastGenerator:
             (lambda: p.vision_score > 100, "A vision score over 100! You were not playing a MOBA, you were operating a state-of-the-art surveillance network. Paranoia suits you, detective."),
             (lambda: p.win and p.kills == 0 and p.assists == 0 and p.time > 1200, "You won a 20-minute game without participating in a single kill. You were essentially a ghost—present on the map, yet entirely non-existent in the conflict."),
             (lambda: (p.pentas >= 1 or p.quadras >= 1) and not p.win and p.deaths >= 10, "A multikill followed by a double-digit death count and a loss. You reached the pinnacle of mechanics only to immediately plummet back into the abyss. A chaotic, confusing tragedy."),
-            (lambda: p.vision_score > (p.minutes * 3) and p.role == 'UTILITY', f"A vision score of {p.vision_score}! You've illuminated the Rift so thoroughly that the fog of war is practically a myth. A obsessive, beautiful dedication to surveillance.")
+            (lambda: p.vision_score > ( p.minutes * 3) and p.vision_wards >= 15 and p.time > 1200 and p.role == 'UTILITY', f"A vision score of {p.vision_score} and {p.vision_wards} Control Wards! You've illuminated the Rift so thoroughly that the fog of war is practically a myth. An obsessive, beautiful, and deeply paranoid dedication to surveillance.")
         ]
 
     def _item_rules(self) -> list:
@@ -388,23 +367,43 @@ class RoastGenerator:
 
     def _rival_rules(self) -> list:
         p = self.p
-        if not p.rival:
-            return []
+        if not p.rival: return []
 
+        r = p.rival
+        win = p.win
+
+        r_kills = r.get('kills', 0)
+        r_solo = r.get('soloKills', 0)
+        r_kp = (r_kills + r.get('assists', 0))
+
+        win_diffs = [
+            (lambda: p.solo_kills >= (r_solo + 3), f"You solo-killed the {p.r_champ} at least 3 times more than they got you. A complete, humiliating mechanical gap."),
+            (lambda: p.skillshots_dodged >= 25 and p.r_dmg < (p.damage / 3), f"You dodged {p.skillshots_dodged} skillshots while dealing triple their damage. It's like you were playing in slow motion while they struggled to keep up."),
+            (lambda: p.gold > (p.r_gold + 6000), f"A 6,000 gold lead over the {p.r_champ}. You weren't playing a match; you were playing a tycoon simulator while they were in poverty.")
+        ]
+        loss_diffs = [
+            (lambda: r_solo >= (p.solo_kills + 3), f"The enemy {p.r_champ} solo-killed you 3 times more than you got them. I'd ask what happened, but it's clear you just forgot how to move your mouse."),
+            (lambda: p.skillshots_dodged < 3 and p.r_dmg > (p.damage * 3) and p.damage > 0, f"You were hit by almost every ability the {p.r_champ} threw while dealing zero damage back. A stationary target would have been more difficult to kill."),
+            (lambda: r_kills >= (p.kills + 12), f"The {p.r_champ} had 12 more kills than you. You weren't a rival; you were a background extra in their montage.")
+        ]
+        shared_diffs = [
+            (lambda: p.role == 'JUNGLE' and r_kp > ((p.kills + p.assists) * 3) and (p.kills + p.assists) > 0, "Their Jungler had triple your kill participation. They were a map-wide disaster; you were a forest tourist."),
+            (lambda: p.role == "UTILITY" and p.r_vision > (p.vision_score * 3) and p.vision_score > 0, f"Triple your vision score from the {p.r_champ}. They built a surveillance state while you played in the dark."),
+            (lambda: p.champ == p.r_champ and p.deaths >= (p.r_deaths + 5) and not win, "The mirror matchup is the ultimate judge. You played the same champion and were significantly worse. Truly the budget version.")
+        ]
+
+        return (win_diffs if win else loss_diffs) + shared_diffs
+
+    def _micro_play_rules(self) -> list:
+        p = self.p
         return [
-            (lambda: p.rival.get('deaths', 1) == 0 and p.time > 1200, f"You allowed the enemy {p.r_champ} to finish the game with absolutely zero deaths. You were less of a lane opponent and more of a harmless spectator."),
-            (lambda: p.rival.get('kills', 0) >= (p.kills + 10), f"The enemy {p.r_champ} secured at least 10 more kills than you. They were the main character of this match, and you were merely their collateral damage."),
-            (lambda: p.role == 'JUNGLE' and (p.kills + p.assists) > 0 and (p.rival.get('kills', 0) + p.rival.get('assists', 0)) > ((p.kills + p.assists) * 2), f"The enemy {p.r_champ} had more than double your kill participation. They were orchestrating map-wide destruction while you were apparently playing a cozy forest exploration game."),
-            (lambda: p.damage > p.r_dmg and p.gold > p.r_gold and not p.win, f"You dealt more damage and earned more gold than the enemy {p.r_champ}, yet you still managed to lose. Having the statistical advantage means absolutely nothing if you lack the macro intellect to use it."),
-            (lambda: p.r_gold > p.gold and p.r_cs > p.cs and p.rival.get('kills', 0) > p.kills and p.r_dmg > p.damage, f"Out-damaged, out-farmed, out-funded, and out-killed by the {p.r_champ}. An absolute, flawless gap in every single measurable category. You did not just lose; you were a tutorial bot."),
-            (lambda: p.r_dmg > (p.damage * 2) and p.damage > 0, f"The enemy {p.r_champ} dealt more than double your damage. You did not just lose your lane, you were mathematically eclipsed by a superior player."),
-            (lambda: p.r_cs > (p.cs + 80) and p.role in ['TOP', 'MIDDLE', 'BOTTOM'], f"The enemy {p.r_champ} out-farmed you by over 80 CS. Were you politely waiting for the minions to die of natural causes while they actually played the game?"),
-            (lambda: p.role == "UTILITY" and p.r_vision > (p.vision_score * 2) and p.vision_score > 0, f"The enemy {p.r_champ} had more than double your vision score. Your team was playing in the dark while the enemy support built a literal surveillance state. Do your job."),
-            (lambda: p.r_gold > (p.gold + 5000), f"The enemy {p.r_champ} generated 5,000 more gold than you. You were playing a survival horror game while they were playing a tycoon simulator. A massive 'diff' in every sense."),
-            (lambda: p.champ == p.r_champ and p.deaths > p.r_deaths and not p.win, f"You played the exact same champion as your opponent, and they played it infinitely better. The mirror matchup does not lie. You are simply the inferior {p.champ}."),
-            (lambda: p.win and p.damage > (p.r_dmg * 2) and p.r_dmg > 0, f"You dealt more than double the damage of the enemy {p.r_champ}. They weren't playing League of Legends; they were participating in a 30-minute interactive seminar on how to be completely irrelevant."),
-            (lambda: p.win and p.kills >= (p.r_deaths + 5) and p.role in ['TOP', 'MIDDLE', 'BOTTOM'], f"The enemy {p.r_champ} was essentially your personal gold courier this match. I hope you thanked them for the generous donations toward your full build."),
-            (lambda: p.win and p.gold > (p.r_gold + 4000), f"A massive 4,000 gold lead over the enemy {p.r_champ}. You were playing with the budget of a monarch while they were struggling to afford their own starter items. A truly pathetic gap.")
+            (lambda: p.skillshots_dodged >= 20 and p.win, f"You dodged {p.skillshots_dodged} skillshots. You were dancing through their abilities like a prima ballerina on opening night. A truly untouchable performance!"),
+            (lambda: p.skillshots_dodged < 5 and p.deaths >= 8 and not p.win, "You dodged fewer than five skillshots the entire game. I assume your strategy was to simply absorb every single ability with your face? How remarkably... courageous."),
+            (lambda: p.dodge_streak >= 8, f"A dodge streak of {p.dodge_streak}? You were practically a ghost on the Rift. The enemy team must have felt like they were trying to punch the wind."),
+            (lambda: p.solo_kills >= 3 and p.win, f"{p.solo_kills} solo kills! You didn't just win; you hunted them down and proved your individual superiority. The audience loves a dominant protagonist."),
+            (lambda: p.solo_kills == 0 and p.kills >= 10 and not p.win, "Ten kills and not a single one was a solo kill. You are the ultimate vulture, waiting for your team to do the heavy lifting before swooping in to steal the credit. Transparent and tacky."),
+            (lambda: p.kda >= 8.0 and p.win, f"A {p.kda:.1f} KDA. Perfection, or something very close to it. The Oratrice has no choice but to rule in your favor after such a clean display."),
+            (lambda: p.kda < 1.0 and p.time > 1200, f"A KDA of {p.kda:.1f}. That isn't just a bad game; that is a statistical disaster. I've seen more contribution from the shopkeeper.")
         ]
 
     def _multikill_rules(self) -> list:
@@ -416,7 +415,44 @@ class RoastGenerator:
             (lambda: p.quadras >= 1 and p.pentas == 0, "A Quadrakill. Four enemies dead, and yet... the fifth eluded you. Whether it was violently stolen by a teammate or you simply choked, you will always know you were one kill short of true perfection.")
         ]
 
-    def get_fallback_quote(self) -> list:
+    def _rune_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.role == "UTILITY" and p.keystone_id in ["8229", "8214"] and p.damage < 6000, "You took an aggressive poke keystone and dealt less damage than a passive Janna. You didn't poke the enemy; you merely tickled them occasionally while wasting your mana."),
+            (lambda: p.keystone_id == "8128" and p.kills < 3 and not p.win, "Dark Harvest? You spent the entire game 'stacking' for a late-game that never arrived. Your keystone was as empty as your kill count."),
+            (lambda: p.keystone_id == "8010" and p.damage < 12000 and p.time > 1800, "You took Conqueror for 'extended fights,' but your damage numbers suggest you never stayed in a fight longer than it takes to press Flash and run away."),
+            (lambda: p.keystone_id == "8369" and p.gold < 10000 and not p.win, "First Strike was a bold choice for someone who spent the entire match being hit first. You didn't generate gold; you just generated a grey screen."),
+            (lambda: p.keystone_id == "8437" and p.role in ["MIDDLE", "BOTTOM"], "Guardian on a carry? Are you so terrified of the enemy that you've traded your lethal potential for a tiny green shield? A coward's build for a coward's performance."),
+            (lambda: p.keystone_id == "8021" and p.deaths >= 12, "Fleet Footwork is meant to help you sustain and kite. Instead, you used it to sprint directly into the enemy team and die even faster. Impressive speed, terrible direction."),
+            (lambda: p.keystone_id == "8230" and p.damage < 10000 and p.deaths == 0 and not p.win, "Phase Rush. You took a rune specifically to run away the moment things got dangerous. You finished with zero deaths and zero impact. A flawlessly cowardly escape act."),
+            (lambda: p.keystone_id == "8112" and p.kills < 3 and p.damage < 12000, "Electrocute implies a sudden, lethal burst of energy. Your performance was more of a static shock—annoying for a second, but ultimately harmless and forgettable."),
+            (lambda: p.keystone_id == "8439" and p.role in ["BOTTOM", "UTILITY"] and p.damage_taken < 10000, "Aftershock? You took a rune for heavy engagers while playing a champion as fragile as glass. The only thing you shocked was your team when they saw your build path."),
+            (lambda: p.keystone_id == "8005" and p.damage < 15000 and p.role == "BOTTOM", "Press the Attack. It’s a very simple instruction, yet your damage numbers suggest you spent the entire game aggressively pressing the 'S' key instead.")
+        ]
+
+    def _afk_behavior_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.kills == 0 and p.deaths == 0 and p.assists == 0 and p.damage < 1000 and p.time > 600, "You finished a match with zero combat stats. Did you spend the entire game 'investigating' the fountain's architecture, or did you simply decide that your presence was too magnificent for the common Rift?"),
+            (lambda: p.gold < 3000 and p.time > 1200, "Less than 3,000 gold in a 20-minute game? I assume you disconnected after your first death and never looked back. A truly coward's exit—exit stage left, and stay there."),
+            (lambda: p.deaths == 0 and p.damage < 500 and p.time > 900 and not p.win, "You survived the entire game with zero deaths and zero impact. Hiding in the fountain while your team’s Nexus explodes isn't 'survival,' darling, it’s a forfeit of your dignity."),
+            (lambda: p.turrets == 0 and p.dragons == 0 and p.kp_percent == 0 and p.time > 900, "You were a literal ghost in this play. No towers, no dragons, no kills. The audience didn't even realize you were part of the cast until the credits rolled.")
+        ]
+
+    def _challenge_stats_rules(self) -> list:
+        p = self.p
+        return [
+            (lambda: p.role != 'UTILITY' and p.team_damage_pct <= 0.10 and p.time > 1200, "You dealt less than 10% of your team's total damage. I've seen caster minions with more combat presence. Were you actively boycotting the team fights?"),
+            (lambda: p.team_damage_pct >= 0.40 and not p.win, "You dealt over 40% of your team's damage and still lost. A magnificent, back-breaking effort completely ruined by an utterly incompetent supporting cast. A beautiful tragedy."),
+            (lambda: p.role != 'UTILITY' and p.dpm < 300.0 and p.time > 1200, f"A Damage Per Minute of {p.dpm:.1f}. You weren't a champion; you were a mild, easily ignorable inconvenience. Try turning your monitor on next time."),
+            (lambda: p.role in ['TOP', 'MIDDLE', 'BOTTOM'] and p.cs_advantage <= -60, f"You finished the game down {abs(p.cs_advantage)} CS to your direct opponent. You didn't just lose your lane; you were mathematically evicted from it."),
+            (lambda: p.role in ['TOP', 'MIDDLE'] and p.plates == 0 and p.time > 900, "Zero turret plates taken. Did the enemy tower intimidate you, or are you simply allergic to free gold? A stunning display of early-game cowardice."),
+            (lambda: p.lucky_survivals >= 3, "You survived with single-digit health three separate times. Do not mistake sheer, unadulterated luck for mechanical skill. The Oratrice sees right through you."),
+            (lambda: p.outnumbered_kills >= 2 and p.win, "Multiple kills while outnumbered. A rare moment of actual brilliance. I will allow you exactly one second of pride before we move on."),
+            (lambda: p.outnumbered_kills == 0 and p.deaths >= 10, "Ten deaths and absolutely zero ability to fight back when outnumbered. You folded faster than a cheap prop chair the moment the stage got crowded.")
+        ]
+
+    def get_fallback_quote(self) -> str:
         global last_win_quotes, last_loss_quotes
 
         win_quotes = [
@@ -488,21 +524,25 @@ class RoastGenerator:
             last_loss_quotes = history_list
         return selection
 
-    def get_all_rules(self) -> list:
+    def get_all_rules(self):
         # Order matters, priority cascades from Top to Bottom.
-        return (
-            self._champion_rules() +
-            self._multikill_rules() +
-            self._tragedy_rules() +
-            self._rival_rules() +
-            self._economy_rules() +
-            self._role_rules() +
-            self._objective_rules() +
-            self._item_rules() +
-            self._macro_item_rules() +
-            self._macro_rules() +
-            self._coward_rules() +
-            self._anomaly_rules() +
-            self._praise_rules() +
+        return chain(
+            self._champion_rules(),
+            self._multikill_rules(),
+            self._micro_play_rules(),
+            self._challenge_stats_rules(),
+            self._afk_behavior_rules(),
+            self._tragedy_rules(),
+            self._rival_rules(),
+            self._economy_rules(),
+            self._role_rules(),
+            self._objective_rules(),
+            self._item_rules(),
+            self._rune_rules(),
+            self._macro_item_rules(),
+            self._macro_rules(),
+            self._coward_rules(),
+            self._anomaly_rules(),
+            self._praise_rules(),
             self._mediocre_rules()
         )
