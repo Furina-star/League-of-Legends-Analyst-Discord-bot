@@ -34,19 +34,16 @@ class GeneralCommands(commands.Cog):
 
     # The Trial command
     # What does it do? put the victim in trial and let furina judge for fun.
-    @app_commands.command(name="trial", description="Judge who threw the game.")
+    @app_commands.command(name="trial", description="Judge who truly threw the game and deliver a final verdict.")
     @app_commands.describe(defendant="The duo partner you are accusing.")
     async def trial(self, interaction: discord.Interaction, defendant: discord.Member):
         # Open the Court Session
-        await interaction.response.send_message(
-            f"⚖️ **The court is now in session!**\n{interaction.user.mention} accuses {defendant.mention} of atrocious gameplay."
-        )
+        await interaction.response.send_message(f"⚖️ **The court is now in session!**\n{interaction.user.mention} accuses {defendant.mention} of atrocious gameplay.")
 
         # Build the suspense lol
-        await asyncio.sleep(3)
-        # We use wait=True so we can store this specific message and edit it later
+        await asyncio.sleep(2)
         spinning_msg = await interaction.followup.send("⚙️ *The Oratrice Mecanique d'Analyse Cardinale is spinning...*",wait=True)
-        await asyncio.sleep(4)
+        await asyncio.sleep(3)
 
         is_guilty = random.choice([True, False])
 
@@ -63,7 +60,6 @@ class GeneralCommands(commands.Cog):
                     f"**CASE CLOSED!** {defendant.mention}, your inability to land a single skillshot has reached legendary levels of failure. {interaction.user.mention} is officially acquitted!"
                 ]
                 random.shuffle(self.guilty_deck)
-
             verdict = self.guilty_deck.pop(0)
             color = discord.Color.red()
         else:
@@ -79,28 +75,22 @@ class GeneralCommands(commands.Cog):
                     f"**THE FINAL BLUFF!** {interaction.user.mention}, did you think I wouldn't notice your damage chart? You dealt less than the support! The Oratrice finds the accuser guilty!"
                 ]
                 random.shuffle(self.plot_twist_deck)
-
             verdict = self.plot_twist_deck.pop(0)
             color = discord.Color.blue()
 
-        embed = discord.Embed(title="📜 Final Verdict", description=verdict, color=color)
-
         # Deliver the final judgment
+        embed = discord.Embed(title="📜 Final Verdict", description=verdict, color=color)
         await spinning_msg.edit(content=None, embed=embed)
 
     # The Confess command
     # What does it do? the victim can plead again
-    @app_commands.command(name="confess", description="Admit your horrific misplay and beg the Oratrice for mercy.")
+    @app_commands.command(name="confess", description="Admit your horrific misplays and beg the Oratrice for mercy.")
     @app_commands.describe(crime="What atrocious play did you commit?")
     async def confess(self, interaction: discord.Interaction, crime: str):
-        await interaction.response.send_message(
-            f"🙏 {interaction.user.mention} has approached the stand to confess: **\"{crime}\"**"
-        )
+        await interaction.response.send_message(f"🙏 {interaction.user.mention} has approached the stand to confess: **\"{crime}\"**")
 
         await asyncio.sleep(3)
-        msg = await interaction.followup.send(
-            "⚙️ *The Oratrice Mecanique d'Analyse Cardinale is evaluating your sincerity...*", wait=True
-        )
+        msg = await interaction.followup.send("⚙️ *The Oratrice Mecanique d'Analyse Cardinale is evaluating your sincerity...*", wait=True)
         await asyncio.sleep(4)
 
         is_forgiven = random.choice([True, False])
@@ -108,8 +98,8 @@ class GeneralCommands(commands.Cog):
         if is_forgiven:
             if not self.mercy_deck:
                 self.mercy_deck = [
-                    "**FORGIVEN!** The Oratrice senses true remorse. Your LP will be spared this day. Go forth and do not feed again.",
-                    "**ABSOLVED!** A momentary lapse in judgment does not define a star. Your sins are washed away by the waters of Fontaine.",
+                    f"**FORGIVEN!** The Oratrice senses true remorse for your '{crime}'. Your LP will be spared.",
+                    f"**ABSOLVED!** A momentary lapse in judgment like '{crime}' does not define a star.",
                     "**CLEANSED!** Your honesty is refreshing. I shall personally see to it that your next teammates have actual human souls.",
                     "**MERCY GRANTED!** Even the grandest stage has its blunders. You are free to return to the Rift, hopefully with more poise.",
                     "**EXCUSED!** The Oratrice finds your crime... understandable. Barely. Take your acquittal and leave before I change my mind.",
@@ -118,7 +108,6 @@ class GeneralCommands(commands.Cog):
                     "**NOT GUILTY!** While your play was an eyesore, your soul remains intact. The court dismisses these charges."
                 ]
                 random.shuffle(self.mercy_deck)
-
             verdict = self.mercy_deck.pop(0)
             color = discord.Color.green()
         else:
@@ -134,7 +123,6 @@ class GeneralCommands(commands.Cog):
                     "**TRAGIC!** Your confession is as messy as your kiting. The Oratrice orders a permanent demotion to the depths of Iron."
                 ]
                 random.shuffle(self.sentence_deck)
-
             verdict = self.sentence_deck.pop(0)
             color = discord.Color.red()
 

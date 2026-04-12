@@ -24,6 +24,8 @@ def build_help_embed() -> discord.Embed:
         color=discord.Color.blue()
     )
     embed.add_field(name="🏓 `/ping`",value="Checks my current latency to Discord.",inline=False)
+    embed.add_field(name ="⚖️ `/trial`", value = "Judge who truly threw the game and deliver a final verdict.", inline=False)
+    embed.add_field(name="🗣 `/confess`", value = "Admit your horrific misplays and beg the Oratrice for mercy.", inline=False)
     embed.add_field(name="⚔️ `/predict`",value="Calculates win probability for a live match.\n**Requires:** Server and Riot ID",inline=False)
     embed.add_field(name="🕵️ `/scout`",value="Builds an enemy dossier for a live match.\n**Requires:** Server and Riot ID", inline=False)
     embed.add_field(name="🏆 `/postgame`",value="Ruthlessly analyzes your most recent match, including lane rival diff and performance grades.\n**Requires:** Server and Riot ID",inline=False)
