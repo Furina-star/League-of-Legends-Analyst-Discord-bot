@@ -1,5 +1,5 @@
 """
-This is the '/ last game' or post game review command.
+This cog is responsible for handling stats related commands
 """
 
 import discord
@@ -10,6 +10,8 @@ from modules.utils.parsers import parse_riot_id, extract_postgame_stats
 from modules.interface.embed_formatter import build_lastgame_embed
 from modules.interface.discord_helpers import server_autocomplete
 from modules.interface.views import MatchCycleView
+from modules.utils.state_resolvers import resolve_match_eligibility
+from utils.database_manager import DatabaseManager
 
 # Get the logging system
 logger = logging.getLogger("discord")
@@ -19,14 +21,13 @@ class StatsCommands(commands.Cog):
         self.bot = bot
         self.riot = riot_client
         self.server_dict = server_dict
+        self.db = DatabaseManager()
 
     # Getting the last game or post match review command
     # Identify what the player did after the game.
     @app_commands.command(name="postgame", description="Furina ruthlessly analyzes your most recent match.")
-    @app_commands.describe(
-        server="The server region (e.g., NA1, EUW1, KR)",
-        full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)"
-    )
+    @app_commands.describe(server="The server region (e.g., NA1, EUW1, KR)", full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)")
+    @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     @app_commands.autocomplete(server=server_autocomplete)
     async def postgame(self, interaction: discord.Interaction, server: str, full_riot_id: str):
         # Automatically gets "americas", "asia", or "europe"
@@ -75,6 +76,30 @@ class StatsCommands(commands.Cog):
             if not player_stats:
                 await interaction.followup.send("⚠️ Error parsing player data.")
                 return
+
+            # Inject the data into the database for the Hall of Shame
+            try:
+                # Get the queue type and duration from the raw match info
+                queue_id = match_data.get('info', {}).get('queueId', 0)
+                game_duration = match_data.get('info', {}).get('gameDuration', 0)
+                is_eligible, _ = resolve_match_eligibility(game_duration, queue_id)
+
+                if is_eligible:
+                    linked_discord_id = self.bot.get_cog("GeneralCommands").db.get_discord_id_by_puuid(puuid)
+
+                    if linked_discord_id:
+                        challenges = player_stats.get('challenges', {})
+                        self.bot.get_cog("GeneralCommands").db.log_match(
+                            discord_id=linked_discord_id,
+                            match_id=history[0],
+                            kp=challenges.get('killParticipation', 0),
+                            deaths=player_stats.get('deaths', 0),
+                            gpm=challenges.get('goldPerMinute', 0),
+                            dpm=challenges.get('damagePerMinute', 0),
+                            win=player_stats.get('win', False)
+                        )
+            except Exception as e:
+                logger.error(f"Hall of Shame DB Error: {e}")
 
             # Build the embed and send the Roast/Praise embed
             embed = build_lastgame_embed(server, full_riot_id, player_stats, self.bot.patch_version)

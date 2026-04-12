@@ -32,7 +32,10 @@ Machine Learning models are serialized using HuggingFace's `safetensors` and `sk
 ### Smart Caching Architecture
 Utilizes a persistent `aiosqlite` connection to cache heavy Riot API endpoints locally, respecting API rate limits and vastly accelerating subsequent commands.
 
-## Installation
+## Setup and Installation
+* Python 3.10+
+* Discord Bot Token (with Message Content Intent enabled)
+* Riot Games API Key
 
 ### 1. Clone
 ```bash
@@ -78,10 +81,12 @@ Prefix: `/` (Slash Commands)
 | `/ ping`                           | Checks bot latency, and status                                                     |
 | `/ trial`                          | Drag your duo to court and let the Oratrice decide who truly threw the game.       |
 | `/ confess`                        | Take the stand, admit your sins, and await the final verdict of the court.         |
+| `/ link <server> RiotName#Tag`     | Link your Riot ID to the Oratrice for Hall of Shame tracking                       |
+| `/ unlink`                         | Sever your ties with the Oratrice and wipe your records clean.                     |
+| `/ hallofshame`                    | View the server's most tragic League of Legends performers this week.              |
 | `/ predict <server> RiotName#Tag`  | Runs the live draft through the PyTorch model and outputs win probability per side |
 | `/ scout <server> RiotName#Tag`    | Generates an enemy team dossier with ranks and champion mastery                    |
 | `/ postgame <server> RiotName#Tag` | Provides a detailed post-game analysis for the specified match ID                  |
 
 ---
-
-*Not endorsed by Riot Games. League of Legends and Riot Games are trademarks of Riot Games, Inc.*
+*Not endorsed by Riot Games or HoYoverse. League of Legends and Riot Games are trademarks of Riot Games, Inc. Genshin Impact and Furina are trademarks of Cognosphere PTE. LTD. (HoYoverse).*

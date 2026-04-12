@@ -29,6 +29,8 @@ Thumbs.db
 *.db
 riot_cache.db
 data/riot_cache.db
+server_state.db
+data/server_state.db
 
 # ML and Data files
 # If its over 100mb yeah i can add it to gitignore

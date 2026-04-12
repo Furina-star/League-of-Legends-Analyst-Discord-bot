@@ -8,7 +8,6 @@ The function also handles cases where the combined roast exceeds Discord's embed
 import random
 from modules.persona.roasts import RoastGenerator
 
-
 # Verdicts for post game review
 def generate_furina_verdict(stats: dict) -> str:
     # Initialize the Roast Engine
@@ -52,3 +51,48 @@ def generate_furina_verdict(stats: dict) -> str:
         return clean_cut + chose_suffix
 
     return combo_roast
+
+# The verdict templates for the trial command, with placeholders for defendant and user mentions. .
+GUILTY_TEMPLATES = [
+    "**GUILTY!** {defendant}, your mechanical incompetence is an insult to the stage! {user} is absolved of all blame.",
+    "**CONVICTED!** The evidence is overwhelming. {defendant} was playing with their eyes closed! {user} is the true victim here.",
+    "**SENTENCED!** {defendant}, your 'gameplay' is a comedy of errors. The Oratrice rules in favor of {user}!",
+    "**VERDICT: ATROCIOUS!** {defendant}, I've seen more coordination from a newborn hilichurl. {user} is innocent!",
+    "**EXPOSED!** {defendant}, your 'tactical' decisions are nothing more than a series of unfortunate events. The Oratrice rules in favor of {user}!",
+    "**CLOWN FIASCO!** {defendant}, I’ve seen better positioning from a target dummy. Your presence on the Rift is a tragedy, and {user} is the only hero here.",
+    "**BEYOND REDEMPTION!** {defendant}, you didn't just throw the game; you launched it into orbit! The court finds you guilty of high treason against the LP of {user}.",
+    "**CASE CLOSED!** {defendant}, your inability to land a single skillshot has reached legendary levels of failure. {user} is officially acquitted!"
+]
+
+PLOT_TWIST_TEMPLATES = [
+    "**PLOT TWIST!** {user}, you dare accuse them when your own macro is this tragic? The Oratrice finds YOU guilty of throwing!",
+    "**REVERSAL!** Upon further inspection, {user} was the one running it down all along! {defendant} is innocent!",
+    "**FALSE ACCUSATION!** {user}, attempting to deflect blame only highlights your own failures. The Oratrice sentences YOU!",
+    "**THE AUDACITY!** {user}, you brought this case to my court while your own KDA is a literal disaster? You are the one who is guilty!",
+    "**REVERSAL OF FATE!** {user}, you claim {defendant} was the problem, yet you were the one hiding in the fountain during every team fight! GUILTY!",
+    "**IRONY AT ITS FINEST!** {user}, pointing fingers won't hide your 15% kill participation. The Oratrice finds YOU responsible for this theatrical disaster!",
+    "**PERJURY!** {user}, you attempted to frame {defendant} for your own mechanical collapse. For this deception, the court sentences YOU to the bronze abyss!",
+    "**THE FINAL BLUFF!** {user}, did you think I wouldn't notice your damage chart? You dealt less than the support! The Oratrice finds the accuser guilty!"
+]
+
+MERCY_TEMPLATES = [
+    "**FORGIVEN!** The Oratrice senses true remorse for your '{crime}'. Your LP will be spared.",
+    "**ABSOLVED!** A momentary lapse in judgment like '{crime}' does not define a star.",
+    "**CLEANSED!** Your honesty is refreshing. I shall personally see to it that your next teammates have actual human souls.",
+    "**MERCY GRANTED!** Even the grandest stage has its blunders. You are free to return to the Rift, hopefully with more poise.",
+    "**EXCUSED!** The Oratrice finds your crime... understandable. Barely. Take your acquittal and leave before I change my mind.",
+    "**REPRIEVED!** Justice is not always cold. Today, you receive the blessing of the court. Do not waste it on a missed Smite.",
+    "**GRACE BESTOWED!** A rare display of humility. I find your confession sufficient to offset your tragic mechanical failure.",
+    "**NOT GUILTY!** While your play was an eyesore, your soul remains intact. The court dismisses these charges."
+]
+
+SENTENCE_TEMPLATES = [
+    "**UNFORGIVABLE!** A confession does not erase a tragedy! The Oratrice sentences you to 5 games of Loser's Queue.",
+    "**CONDEMNED!** You admit to such a crime and expect mercy? Your next 3 promos shall be populated entirely by inters!",
+    "**GUILTY!** Honesty is noble, but your gameplay was a crime against humanity. The court sentences you to the Bronze Abyss.",
+    "**NO MERCY!** I am a judge, not a saint! For that atrocious misplay, you shall suffer a 20-game winless streak.",
+    "**EXECUTION!** (Of your LP, that is). Your confession only highlights how truly horrific your macro has become!",
+    "**BANISHED!** Leave my sight! The Oratrice finds your sincerity lacking and your skillshots even worse.",
+    "**SENTENCED!** You shall be forced to play with a 0/10 Yasuo main for the remainder of the evening. Court adjourned!",
+    "**TRAGIC!** Your confession is as messy as your kiting. The Oratrice orders a permanent demotion to the depths of Iron."
+]

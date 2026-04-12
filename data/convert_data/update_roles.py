@@ -87,8 +87,7 @@ def generate_dynamic_roles(csv_path=DEFAULT_CSV, output_path=DEFAULT_JSON):
     with open(output_path, "w") as f:
         json.dump(new_db, f, indent=4)
 
-    print(f"Successfully created a data-driven database based on your current patch!")
-
+    print("Successfully created a data-driven database based on your current patch!")
 
 if __name__ == "__main__":
     generate_dynamic_roles()

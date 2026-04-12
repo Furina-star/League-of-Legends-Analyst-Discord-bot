@@ -33,10 +33,7 @@ class DraftCommands(commands.Cog):
     # Getting the Live game command.
     # Predict the win condition before the game starts
     @app_commands.command(name="predict", description="Calculates win probability for a live match.")
-    @app_commands.describe(
-        server="The server region (e.g., NA1, EUW1, KR)",
-        full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)"
-    )
+    @app_commands.describe(server="The server region (e.g., NA1, EUW1, KR)", full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)")
     @app_commands.checks.cooldown(1, 5, key=lambda i: i.user.id)
     @app_commands.checks.cooldown(2, 5, key=lambda i: None)
     @app_commands.autocomplete(server=server_autocomplete)
@@ -135,10 +132,7 @@ class DraftCommands(commands.Cog):
     # Getting the enemy information.
     # This part checks what type of bs the enemy team is running
     @app_commands.command(name="scout", description="Builds an enemy dossier for a live match.")
-    @app_commands.describe(
-        server="The server region (e.g., NA1, EUW1, KR)",
-        full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)"
-    )
+    @app_commands.describe(server="The server region (e.g., NA1, EUW1, KR)", full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)")
     @app_commands.checks.cooldown(1, 5, key=lambda i: i.user.id)
     @app_commands.checks.cooldown(2, 5, key=lambda i: None)
     @app_commands.autocomplete(server=server_autocomplete)

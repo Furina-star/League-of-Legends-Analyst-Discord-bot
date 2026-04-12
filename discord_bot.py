@@ -57,7 +57,8 @@ class DiscordBot(commands.Bot):
             initial_extensions = [
                 "cogs.draft_commands",
                 "cogs.general_commands",
-                "cogs.stats_commands"
+                "cogs.stats_commands",
+                "cogs.leaderboard_commands"
             ]
 
             logger.info("Starting extension load...")
@@ -93,7 +94,7 @@ class DiscordBot(commands.Bot):
         # Handles cooldowns
         if isinstance(error, app_commands.CommandOnCooldown):
             cooldown_msg = f"**Slow down!** You can use this command again in `{error.retry_after:.1f}` seconds."
-            if not interaction.response.is_done():
+            if not interaction.response.is_done():  
                 await interaction.response.send_message(cooldown_msg, ephemeral=True)
             else:
                 await interaction.followup.send(cooldown_msg, ephemeral=True)

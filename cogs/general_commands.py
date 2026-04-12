@@ -7,9 +7,18 @@ commands that are common between Discord Bots.
 import discord
 from discord.ext import commands
 from discord import app_commands
+from interface.discord_helpers import server_autocomplete
 from modules.interface.embed_formatter import build_help_embed
+from modules.persona.verdicts import GUILTY_TEMPLATES, PLOT_TWIST_TEMPLATES, MERCY_TEMPLATES, SENTENCE_TEMPLATES
+from modules.utils.state_resolvers import resolve_link_state
 import random
 import asyncio
+import sqlite3
+import logging
+from utils.database_manager import DatabaseManager
+
+# Get the logger system
+logger = logging.getLogger("discord")
 
 class GeneralCommands(commands.Cog):
     def __init__(self, bot):
@@ -18,6 +27,21 @@ class GeneralCommands(commands.Cog):
         self.plot_twist_deck = []
         self.mercy_deck = []
         self.sentence_deck = []
+        self.guilty_deck = []
+        self.plot_twist_deck = []
+        self.mercy_deck = []
+        self.sentence_deck = []
+        self.db = DatabaseManager()
+
+    # The Master Card Drawer, helper to refill, shuffle, and format a card from a deck
+    def _draw_verdict(self, deck_name: str, templates: list, **kwargs) -> str:
+        deck = getattr(self, deck_name)
+        if not deck:
+            deck.extend(templates)
+            random.shuffle(deck)
+
+        # Pop the template and instantly format it with the passed variables
+        return deck.pop(0).format(**kwargs)
 
     # The ping command
     @app_commands.command(name="ping", description="Checks if Furina is online and functioning.")
@@ -37,50 +61,20 @@ class GeneralCommands(commands.Cog):
     @app_commands.command(name="trial", description="Judge who truly threw the game and deliver a final verdict.")
     @app_commands.describe(defendant="The duo partner you are accusing.")
     async def trial(self, interaction: discord.Interaction, defendant: discord.Member):
-        # Open the Court Session
         await interaction.response.send_message(f"⚖️ **The court is now in session!**\n{interaction.user.mention} accuses {defendant.mention} of atrocious gameplay.")
 
-        # Build the suspense lol
         await asyncio.sleep(2)
-        spinning_msg = await interaction.followup.send("⚙️ *The Oratrice Mecanique d'Analyse Cardinale is spinning...*",wait=True)
+        spinning_msg = await interaction.followup.send("⚙️ *The Oratrice Mecanique d'Analyse Cardinale is spinning...*", wait=True)
         await asyncio.sleep(3)
 
-        is_guilty = random.choice([True, False])
-
-        if is_guilty:
-            if not self.guilty_deck:
-                self.guilty_deck = [
-                    f"**GUILTY!** {defendant.mention}, your mechanical incompetence is an insult to the stage! {interaction.user.mention} is absolved of all blame.",
-                    f"**CONVICTED!** The evidence is overwhelming. {defendant.mention} was playing with their eyes closed! {interaction.user.mention} is the true victim here.",
-                    f"**SENTENCED!** {defendant.mention}, your 'gameplay' is a comedy of errors. The Oratrice rules in favor of {interaction.user.mention}!",
-                    f"**VERDICT: ATROCIOUS!** {defendant.mention}, I've seen more coordination from a newborn hilichurl. {interaction.user.mention} is innocent!",
-                    f"**EXPOSED!** {defendant.mention}, your 'tactical' decisions are nothing more than a series of unfortunate events. The Oratrice rules in favor of {interaction.user.mention}!",
-                    f"**CLOWN FIASCO!** {defendant.mention}, I’ve seen better positioning from a target dummy. Your presence on the Rift is a tragedy, and {interaction.user.mention} is the only hero here.",
-                    f"**BEYOND REDEMPTION!** {defendant.mention}, you didn't just throw the game; you launched it into orbit! The court finds you guilty of high treason against the LP of {interaction.user.mention}.",
-                    f"**CASE CLOSED!** {defendant.mention}, your inability to land a single skillshot has reached legendary levels of failure. {interaction.user.mention} is officially acquitted!"
-                ]
-                random.shuffle(self.guilty_deck)
-            verdict = self.guilty_deck.pop(0)
+        if random.choice([True, False]):
+            verdict = self._draw_verdict("guilty_deck", GUILTY_TEMPLATES, user=interaction.user.mention, defendant=defendant.mention)
             color = discord.Color.red()
         else:
-            if not self.plot_twist_deck:
-                self.plot_twist_deck = [
-                    f"**PLOT TWIST!** {interaction.user.mention}, you dare accuse them when your own macro is this tragic? The Oratrice finds YOU guilty of throwing!",
-                    f"**REVERSAL!** Upon further inspection, {interaction.user.mention} was the one running it down all along! {defendant.mention} is innocent!",
-                    f"**FALSE ACCUSATION!** {interaction.user.mention}, attempting to deflect blame only highlights your own failures. The Oratrice sentences YOU!",
-                    f"**THE AUDACITY!** {interaction.user.mention}, you brought this case to my court while your own KDA is a literal disaster? You are the one who is guilty!",
-                    f"**REVERSAL OF FATE!** {interaction.user.mention}, you claim {defendant.mention} was the problem, yet you were the one hiding in the fountain during every team fight! GUILTY!",
-                    f"**IRONY AT ITS FINEST!** {interaction.user.mention}, pointing fingers won't hide your 15% kill participation. The Oratrice finds YOU responsible for this theatrical disaster!",
-                    f"**PERJURY!** {interaction.user.mention}, you attempted to frame {defendant.mention} for your own mechanical collapse. For this deception, the court sentences YOU to the bronze abyss!",
-                    f"**THE FINAL BLUFF!** {interaction.user.mention}, did you think I wouldn't notice your damage chart? You dealt less than the support! The Oratrice finds the accuser guilty!"
-                ]
-                random.shuffle(self.plot_twist_deck)
-            verdict = self.plot_twist_deck.pop(0)
+            verdict = self._draw_verdict("plot_twist_deck", PLOT_TWIST_TEMPLATES, user=interaction.user.mention, defendant=defendant.mention)
             color = discord.Color.blue()
 
-        # Deliver the final judgment
-        embed = discord.Embed(title="📜 Final Verdict", description=verdict, color=color)
-        await spinning_msg.edit(content=None, embed=embed)
+        await spinning_msg.edit(content=None, embed=discord.Embed(title="📜 Final Verdict", description=verdict, color=color))
 
     # The Confess command
     # What does it do? the victim can plead again
@@ -93,42 +87,88 @@ class GeneralCommands(commands.Cog):
         msg = await interaction.followup.send("⚙️ *The Oratrice Mecanique d'Analyse Cardinale is evaluating your sincerity...*", wait=True)
         await asyncio.sleep(4)
 
-        is_forgiven = random.choice([True, False])
-
-        if is_forgiven:
-            if not self.mercy_deck:
-                self.mercy_deck = [
-                    f"**FORGIVEN!** The Oratrice senses true remorse for your '{crime}'. Your LP will be spared.",
-                    f"**ABSOLVED!** A momentary lapse in judgment like '{crime}' does not define a star.",
-                    "**CLEANSED!** Your honesty is refreshing. I shall personally see to it that your next teammates have actual human souls.",
-                    "**MERCY GRANTED!** Even the grandest stage has its blunders. You are free to return to the Rift, hopefully with more poise.",
-                    "**EXCUSED!** The Oratrice finds your crime... understandable. Barely. Take your acquittal and leave before I change my mind.",
-                    "**REPRIEVED!** Justice is not always cold. Today, you receive the blessing of the court. Do not waste it on a missed Smite.",
-                    "**GRACE BESTOWED!** A rare display of humility. I find your confession sufficient to offset your tragic mechanical failure.",
-                    "**NOT GUILTY!** While your play was an eyesore, your soul remains intact. The court dismisses these charges."
-                ]
-                random.shuffle(self.mercy_deck)
-            verdict = self.mercy_deck.pop(0)
+        if random.choice([True, False]):
+            verdict = self._draw_verdict("mercy_deck", MERCY_TEMPLATES, crime=crime)
             color = discord.Color.green()
         else:
-            if not self.sentence_deck:
-                self.sentence_deck = [
-                    "**UNFORGIVABLE!** A confession does not erase a tragedy! The Oratrice sentences you to 5 games of Loser's Queue.",
-                    "**CONDEMNED!** You admit to such a crime and expect mercy? Your next 3 promos shall be populated entirely by inters!",
-                    "**GUILTY!** Honesty is noble, but your gameplay was a crime against humanity. The court sentences you to the Bronze Abyss.",
-                    "**NO MERCY!** I am a judge, not a saint! For that atrocious misplay, you shall suffer a 20-game winless streak.",
-                    "**EXECUTION!** (Of your LP, that is). Your confession only highlights how truly horrific your macro has become!",
-                    "**BANISHED!** Leave my sight! The Oratrice finds your sincerity lacking and your skillshots even worse.",
-                    "**SENTENCED!** You shall be forced to play with a 0/10 Yasuo main for the remainder of the evening. Court adjourned!",
-                    "**TRAGIC!** Your confession is as messy as your kiting. The Oratrice orders a permanent demotion to the depths of Iron."
-                ]
-                random.shuffle(self.sentence_deck)
-            verdict = self.sentence_deck.pop(0)
+            verdict = self._draw_verdict("sentence_deck", SENTENCE_TEMPLATES, crime=crime)
             color = discord.Color.red()
 
-        # Final reveal
-        embed = discord.Embed(title="📜 Final Judgment", description=verdict, color=color)
-        await msg.edit(content=None, embed=embed)
+        await msg.edit(content=None, embed=discord.Embed(title="📜 Final Judgment", description=verdict, color=color))
+
+    # The Link Command
+    # This is where it links Riot PUUID to Discord ID, so we can track their games and stats.
+    @app_commands.command(name="link", description="Link your Riot ID to the Oratrice for Hall of Shame tracking.")
+    @app_commands.describe(server="The server region (e.g., NA1, EUW1)", full_riot_id="Your Riot ID (e.g., Name#Tag)")
+    @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
+    @app_commands.autocomplete(server=server_autocomplete)
+    async def link(self, interaction: discord.Interaction, server: str, full_riot_id: str):
+        await interaction.response.defer(ephemeral=True)
+
+        # The Guard Clause, fail fast before doing any heavy lifting
+        if "#" not in full_riot_id:
+            return await interaction.followup.send("⚠️ Invalid format. You must include the hashtag (e.g., Name#Tag).")
+
+        stats_cog = self.bot.get_cog("StatsCommands")
+        if not stats_cog:
+            return await interaction.followup.send("⚠️ Critical Error: Stats module is currently offline.")
+
+        server = server.lower()
+        if server not in stats_cog.server_dict:
+            return await interaction.followup.send("⚠️ Invalid server region.")
+
+        region = stats_cog.server_dict[server]
+        game_name, tag_line = full_riot_id.split("#", 1)
+        new_riot_id = f"{game_name}#{tag_line}"
+
+        try:
+            # API Validation
+            puuid = await stats_cog.riot.get_puuid(game_name, tag_line, region_override=region)
+            if not puuid:
+                return await interaction.followup.send(
+                    "⚠️ Could not find that Riot ID. Ensure the spelling and region are correct.")
+
+            # Anti-Fraud Validation
+            existing_owner = self.db.get_discord_id_by_puuid(puuid)
+            if existing_owner and str(existing_owner) != str(interaction.user.id):
+                return await interaction.followup.send(
+                    f"⚠️ Identity theft is a serious crime! That Riot ID is already claimed by <@{existing_owner}>.")
+
+            # Call the helper from state_resolvers.py
+            should_abort, msg = resolve_link_state(self.db, interaction.user.id, puuid, new_riot_id)
+
+            if should_abort:
+                return await interaction.followup.send(msg)
+
+            # Database execution
+            self.db.link_account(interaction.user.id, puuid, new_riot_id)
+            await interaction.followup.send(msg)
+
+        except sqlite3.Error as db_err:
+            logger.error(f"Database error in /link for {interaction.user}: {db_err}")
+            await interaction.followup.send("⚠️ A database error occurred. The Oratrice could not record your link.")
+
+        except Exception as e:
+            logger.error(f"Unexpected error in /link: {e}", exc_info=True)
+            await interaction.followup.send("⚠️ An unexpected error occurred while contacting the Riot servers.")
+
+    # The Unlink Command
+    # Unlink the Riot ID from the Discord User
+    @app_commands.command(name="unlink", description="Sever your ties with the Oratrice and remove your linked Riot ID.")
+    @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
+    async def unlink(self, interaction: discord.Interaction):
+        try:
+            current_link = self.db.get_linked_account(interaction.user.id)
+            if not current_link:
+                await interaction.response.send_message( "⚠️ You don't have an account linked to the Oratrice. You are already free.", ephemeral=True)
+                return
+
+            self.db.unlink_account(interaction.user.id)
+            await interaction.response.send_message(f"✅ Your account (**{current_link[0]}**) has been successfully unlinked. The Oratrice will no longer track your performances.", ephemeral=True)
+
+        except sqlite3.Error as db_err:
+            logger.error(f"Database error in /unlink for {interaction.user}: {db_err}")
+            await interaction.response.send_message("⚠️ A database error occurred. You are trapped in the Hall of Shame for now.", ephemeral=True)
 
 # Setup hook to load the Cog
 async def setup(bot):

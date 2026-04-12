@@ -5,7 +5,7 @@ It takes in the relevant data and constructs a Discord Embed object with the app
 
 import discord
 from typing import List, Tuple
-from modules.persona.roasts import ParsedStats
+from modules.utils.parsers import ParsedStats
 from modules.persona.tags import get_pregame_tags, get_performance_tags
 from modules.persona.verdicts import generate_furina_verdict
 from modules.utils.data_loader import ITEM_DB, RUNE_DB, SPELL_DB
@@ -23,9 +23,17 @@ def build_help_embed() -> discord.Embed:
                     "Just type `/` and select my commands from the menu!",
         color=discord.Color.blue()
     )
+    # System Command
     embed.add_field(name="🏓 `/ping`",value="Checks my current latency to Discord.",inline=False)
-    embed.add_field(name ="⚖️ `/trial`", value = "Judge who truly threw the game and deliver a final verdict.", inline=False)
-    embed.add_field(name="🗣 `/confess`", value = "Admit your horrific misplays and beg the Oratrice for mercy.", inline=False)
+
+    # The Court and Hall of Shame
+    embed.add_field(name="🔗 `/link`", value="Link your Riot ID to the Oratrice for Hall of Shame tracking.\n**Requires:** Server and Riot ID", inline=False)
+    embed.add_field(name="✂️ `/unlink`", value="Sever your ties with the Oratrice and wipe your records clean.", inline=False)
+    embed.add_field(name="🏛️ `/hallofshame`", value="View the server's most tragic League of Legends performers this week.", inline=False)
+    embed.add_field(name="⚖️ `/trial`", value="Judge who truly threw the game and deliver a final verdict.", inline=False)
+    embed.add_field(name="🗣 `/confess`", value="Admit your horrific misplays and beg the Oratrice for mercy.", inline=False)
+
+    # Game Analysis
     embed.add_field(name="⚔️ `/predict`",value="Calculates win probability for a live match.\n**Requires:** Server and Riot ID",inline=False)
     embed.add_field(name="🕵️ `/scout`",value="Builds an enemy dossier for a live match.\n**Requires:** Server and Riot ID", inline=False)
     embed.add_field(name="🏆 `/postgame`",value="Ruthlessly analyzes your most recent match, including lane rival diff and performance grades.\n**Requires:** Server and Riot ID",inline=False)

@@ -12,8 +12,114 @@ from typing import Optional
 # Get the logging system
 logger = logging.getLogger(__name__)
 
-# Initiate Riot ID Parser as a function.
-# Helper number two for Duo detection
+# This class handles all stats calculation and such
+class ParsedStats:
+    def __init__(self, stats: dict):
+        # Base Stats
+        self.champ = stats.get('championName', '')
+        self.kills = stats.get('kills', 0)
+        self.deaths = stats.get('deaths', 0)
+        self.assists = stats.get('assists', 0)
+        self.damage = stats.get('totalDamageDealtToChampions', 0)
+        self.damage_taken = stats.get('totalDamageTaken', 0)
+        self.vision_wards = stats.get('visionWardsBoughtInGame', 0)
+        self.role = stats.get('teamPosition', '')
+        self.win = stats.get('win', False)
+        self.time = stats.get('gameDuration', 0)
+        self.game_mode = stats.get('gameMode', 'Unknown Mode')
+        self.match_id = stats.get('matchId', 'Unknown ID')
+        self.cs = stats.get('totalMinionsKilled', 0) + stats.get('neutralMinionsKilled', 0)
+        self.gold = stats.get('goldEarned', 0)
+        self.vision_score = stats.get('visionScore', 0)
+        self.healing = stats.get('totalHeal', 0)
+
+        # Summoner Spells
+        self.spell1_id = stats.get('summoner1Id', 0)
+        self.spell2_id = stats.get('summoner2Id', 0)
+
+        # Challenge Stats (For Extra Tags and Roasts!)
+        self.challenges = stats.get('challenges', {})
+        self.skillshots_dodged = self.challenges.get('skillshotsDodged', 0)
+        self.solo_kills = self.challenges.get('soloKills', 0)
+        self.dodge_streak = self.challenges.get('maxDodgeSteak', 0)  # Yes, Riot typos it as 'steak'
+        self.kda = self.challenges.get('kda', 0.0)
+        self.team_damage_pct = self.challenges.get('teamDamagePercentage', 0.0)
+        self.dpm = self.challenges.get('damagePerMinute', 0.0)
+        self.cs_advantage = self.challenges.get('maxCsAdvantageOnLaneOpponent', 0)
+        self.plates = self.challenges.get('turretPlatesTaken', 0)
+        self.lucky_survivals = self.challenges.get('survivedSingleDigitHpCount', 0)
+        self.outnumbered_kills = self.challenges.get('outnumberedKills', 0)
+
+        # Advanced Calculated Stats (For Tags and Roasts!)
+        self.minutes = self.time / 60.0 if self.time > 0 else 1.0
+        self.cs_per_min = self.cs / self.minutes
+
+        self.team_kills = stats.get('teamKills', 1)
+        self.kp_percent = ((self.kills + self.assists) / self.team_kills) * 100 if self.team_kills > 0 else 0.0
+
+        # Objective & Milestone Stats
+        self.first_blood = stats.get('firstBloodKill', False)
+        self.pentas = stats.get('pentaKills', 0)
+        self.quadras = stats.get('quadraKills', 0)
+        self.turrets = stats.get('turretKills', 0)
+        self.stolen_objs = stats.get('objectivesStolen', 0)
+        self.dragons = stats.get('dragonKills', 0)
+
+        # Get the Rival's stats
+        rival_data = stats.get('rivalStats') or {}
+        self.rival = rival_data if rival_data else None
+        if self.rival:
+            self.r_dmg = self.rival.get('totalDamageDealtToChampions', 0)
+            self.r_gold = self.rival.get('goldEarned', 0)
+            self.r_cs = self.rival.get('totalMinionsKilled', 0) + self.rival.get('neutralMinionsKilled', 0)
+            self.r_champ = self.rival.get('championName', 'your lane opponent')
+            self.r_vision = self.rival.get('visionScore', 0)
+            self.r_deaths = self.rival.get('deaths', 0)
+        else:
+            self.r_dmg = self.r_gold = self.r_cs = self.r_vision = self.r_deaths = 0
+            self.r_champ = "Unknown"
+
+        # Item Extraction
+        self.items = [
+            stats.get('item0', 0), stats.get('item1', 0), stats.get('item2', 0),
+            stats.get('item3', 0), stats.get('item4', 0), stats.get('item5', 0)
+        ]
+        self.item_count = sum(1 for i in self.items if i != 0)
+        self.trinket = stats.get('item6', 0)
+
+        # Keystone Extraction
+        self.keystone_id = None
+        try:
+            self.keystone_id = str(stats['perks']['styles'][0]['selections'][0]['perk'])
+            self.primary_style = stats['perks']['styles'][0]['style']  # Tracks Precision, Domination, etc.
+        except (KeyError, IndexError):
+            self.keystone_id = None
+            self.primary_style = None
+
+    # Calculates a rough performance letter grade.
+    def get_grade(self) -> str:
+        score = 0
+
+        # Calculate Score using Boolean Math (True = 1, False = 0)
+        # Example: If KP is 70%, it evaluates to (1) + (1) = 2 points!
+        score += (self.kp_percent > 45.0) + (self.kp_percent > 65.0)
+
+        if self.role == "UTILITY":
+            score += (self.vision_score > self.minutes) + (self.vision_score > self.minutes * 2)
+        else:
+            score += (self.cs_per_min > 6.0) + (self.cs_per_min > 8.0)
+
+        # Deaths give points for being low, and subtract 2 for feeding
+        score += (self.deaths <= 5) + (self.deaths <= 2)
+        score -= 2 * (self.deaths >= 10)
+
+        # Convert score to letter grade without massive if/elif chains
+        grade_map = [(5, "S+"), (4, "A"), (3, "B"), (1, "C"), (0, "D")]
+
+        # next() searches the map top-to-bottom and returns the first match. Default is "F".
+        return next((grade for limit, grade in grade_map if score >= limit), "F")
+
+# Find duos
 def find_duos(player_histories: list) -> set:
     duos = set()
     # Compare every player's match history against every other player's history
