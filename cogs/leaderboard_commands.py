@@ -6,19 +6,17 @@ Adding more future implementation I hope.
 import discord
 from discord.ext import commands
 from discord import app_commands
-from modules.utils.database_manager import DatabaseManager
 
 class LeaderboardCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = DatabaseManager()
 
     @app_commands.command(name="hallofshame", description="View the server's worst League of Legends performers this week.")
     @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     async def hallofshame(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
-        stats = await self.db.get_hall_of_shame()
+        stats = await self.bot.db.get_hall_of_shame()
 
         embed = discord.Embed(
             title="🏛️ The Hall of Shame",

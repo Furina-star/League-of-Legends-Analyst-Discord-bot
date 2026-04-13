@@ -5,17 +5,17 @@ commands that are common between Discord Bots.
 """
 
 import discord
-from discord.ext import commands
-from discord import app_commands
-from interface.discord_helpers import server_autocomplete
-from modules.interface.embed_formatter import build_help_embed
-from modules.persona.verdicts import GUILTY_TEMPLATES, PLOT_TWIST_TEMPLATES, MERCY_TEMPLATES, SENTENCE_TEMPLATES
-from modules.utils.state_resolvers import resolve_link_state
 import random
 import asyncio
-import sqlite3
+import aiosqlite
 import logging
-from utils.database_manager import DatabaseManager
+from discord.ext import commands
+from discord import app_commands
+from modules.interface.embed_formatter import build_help_embed
+from modules.interface.discord_helpers import server_autocomplete
+from modules.utils.database_manager import DatabaseManager
+from modules.persona.verdicts import GUILTY_TEMPLATES, PLOT_TWIST_TEMPLATES, MERCY_TEMPLATES, SENTENCE_TEMPLATES
+from modules.utils.state_resolvers import resolve_link_state
 
 # Get the logger system
 logger = logging.getLogger("discord")
@@ -23,10 +23,6 @@ logger = logging.getLogger("discord")
 class GeneralCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.guilty_deck = []
-        self.plot_twist_deck = []
-        self.mercy_deck = []
-        self.sentence_deck = []
         self.guilty_deck = []
         self.plot_twist_deck = []
         self.mercy_deck = []
@@ -144,9 +140,10 @@ class GeneralCommands(commands.Cog):
             await self.db.link_account(interaction.user.id, puuid, new_riot_id)
             await interaction.followup.send(msg)
 
-        except sqlite3.Error as db_err:
-            logger.error(f"Database error in /link for {interaction.user}: {db_err}")
-            await interaction.followup.send("⚠️ A database error occurred. The Oratrice could not record your link.")
+
+        except aiosqlite.Error as db_err:
+            logger.error(f"Database error in /link: {db_err}")
+            await interaction.followup.send("⚠️ A database error occurred")
 
         except Exception as e:
             logger.error(f"Unexpected error in /link: {e}", exc_info=True)
@@ -166,7 +163,7 @@ class GeneralCommands(commands.Cog):
             await self.db.unlink_account(interaction.user.id)
             await interaction.response.send_message(f"✅ Your account (**{current_link[0]}**) has been successfully unlinked. The Oratrice will no longer track your performances.", ephemeral=True)
 
-        except sqlite3.Error as db_err:
+        except aiosqlite.Error as db_err:
             logger.error(f"Database error in /unlink for {interaction.user}: {db_err}")
             await interaction.response.send_message("⚠️ A database error occurred. You are trapped in the Hall of Shame for now.", ephemeral=True)
 

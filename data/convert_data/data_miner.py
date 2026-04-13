@@ -2,21 +2,21 @@ import asyncio
 import csv
 import os, sys
 import aiofiles
+from collections import deque
 from dotenv import load_dotenv
 from riot_api import RiotAPIClient
 
 load_dotenv()
 RIOT_KEY = os.getenv('RIOT_API_KEY')
-if not RIOT_KEY: # Quick Sanity Check
+if not RIOT_KEY:  # Quick Sanity Check
     sys.exit("Error: DISCORD_TOKEN and RIOT_API_KEY must be set in the .env file.")
 
 REGION = "asia"  # Change region
 PLATFORM = "sg2"  # Change platform (e.g., "na1", "euw1", "kr1", etc.)
 TARGET_MATCHES = 55000  # How many games to mine
 
-# Use absolute path relative to this script's location
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_FILENAME = os.path.join(SCRIPT_DIR, "..", "ranked_drafts.csv")
+SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
+CSV_FILENAME = str(os.path.join(SCRIPT_DIR, "..", "ranked_drafts.csv"))
 
 # Initialize reading existing csv dataset as a function
 async def _load_existing_csv():
@@ -47,21 +47,26 @@ async def _create_csv_headers():
 
 # Initialize Queue Rebuilder as a function
 async def _rebuild_queue(client, seed_puuid):
-    puuid_queue = [seed_puuid]
+    # O(1) Data Structures
+    puuid_queue = deque([seed_puuid])
+    seen_puuids = {seed_puuid}
+
     print("Save state detected. Force-fetching seed's latest match to rebuild the player queue...")
 
     seed_history = await client.get_match_history(seed_puuid, count=1)
     if seed_history:
         jumpstart_match = await client.get_match_details(seed_history[0])
-        await asyncio.sleep(1.2)
+        await asyncio.sleep(1.5)
 
         if jumpstart_match and 'info' in jumpstart_match:
             for p in jumpstart_match['info']['participants']:
-                if p['puuid'] not in puuid_queue:
-                    puuid_queue.append(p['puuid'])
+                puuid = p['puuid']
+                if puuid not in seen_puuids:
+                    puuid_queue.append(puuid)
+                    seen_puuids.add(puuid)
 
     print(f"Web Restored! Found {len(puuid_queue)} new players to branch out to.")
-    return puuid_queue
+    return puuid_queue, seen_puuids
 
 # Extracts the draft and result from a match's participants. Returns (row, None) or (None, reason).
 def _parse_draft(participants):
@@ -110,8 +115,9 @@ async def _save_if_new(match_id, participants, visited_matches, matches_collecte
     print(f"✅ Saved Match {matches_collected}/{TARGET_MATCHES} [{match_id}]")
     return matches_collected
 
+
 # Processes a list of match IDs, saves valid ones, and returns updated matches_collected.
-async def _process_match_history(client, match_history, visited_matches, puuid_queue, matches_collected):
+async def _process_match_history(client, match_history, visited_matches, puuid_queue, seen_puuids, matches_collected):
     for match_id in match_history:
         if matches_collected >= TARGET_MATCHES:
             break
@@ -120,7 +126,7 @@ async def _process_match_history(client, match_history, visited_matches, puuid_q
             continue
 
         match_data = await client.get_match_details(match_id)
-        await asyncio.sleep(1.2)
+        await asyncio.sleep(1.5)
 
         if not match_data or 'info' not in match_data:
             continue
@@ -128,8 +134,11 @@ async def _process_match_history(client, match_history, visited_matches, puuid_q
         participants = match_data['info']['participants']
 
         for p in participants:
-            if p['puuid'] not in puuid_queue:
-                puuid_queue.append(p['puuid'])
+            puuid = p['puuid']
+            # O(1) Instant Lookup
+            if puuid not in seen_puuids:
+                puuid_queue.append(puuid)
+                seen_puuids.add(puuid)
 
         matches_collected = await _save_if_new(match_id, participants, visited_matches, matches_collected)
 
@@ -159,9 +168,10 @@ async def mine_data(seed_game_name, seed_tag_line):
         return
 
     if matches_collected > 0:
-        puuid_queue = await _rebuild_queue(client, seed_puuid)
+        puuid_queue, seen_puuids = await _rebuild_queue(client, seed_puuid)
     else:
-        puuid_queue = [seed_puuid]
+        puuid_queue = deque([seed_puuid])
+        seen_puuids = {seed_puuid}
 
     # Event-driven approach: the loop signals completion instead of sleeping to check a condition
     stop_event = asyncio.Event()
@@ -169,7 +179,7 @@ async def mine_data(seed_game_name, seed_tag_line):
     async def spider_loop():
         nonlocal matches_collected
         while puuid_queue and not stop_event.is_set():
-            current_puuid = puuid_queue.pop(0)
+            current_puuid = puuid_queue.popleft()
             print(f"\n🔍 Scanning new player... (Queue size: {len(puuid_queue)})")
 
             match_history = await client.get_match_history(current_puuid, count=20)
@@ -177,7 +187,7 @@ async def mine_data(seed_game_name, seed_tag_line):
                 continue
 
             matches_collected = await _process_match_history(
-                client, match_history, visited_matches, puuid_queue, matches_collected
+                client, match_history, visited_matches, puuid_queue, seen_puuids, matches_collected
             )
 
             if matches_collected >= TARGET_MATCHES:
@@ -190,4 +200,3 @@ async def mine_data(seed_game_name, seed_tag_line):
 
 if __name__ == "__main__":
     asyncio.run(mine_data("Hide on Bush", "KR1"))
-

@@ -3,15 +3,15 @@ This cog is responsible for handling stats related commands
 """
 
 import discord
+import logging
 from discord.ext import commands
 from discord import app_commands
-import logging
-from modules.utils.parsers import parse_riot_id, extract_postgame_stats
 from modules.interface.embed_formatter import build_lastgame_embed
 from modules.interface.discord_helpers import server_autocomplete
 from modules.interface.views import MatchCycleView
+from modules.utils.parsers import parse_riot_id, extract_postgame_stats
 from modules.utils.state_resolvers import resolve_match_eligibility
-from utils.database_manager import DatabaseManager
+from modules.utils.database_manager import DatabaseManager
 
 # Get the logging system
 logger = logging.getLogger("discord")
@@ -85,7 +85,7 @@ class StatsCommands(commands.Cog):
                 is_eligible, _ = resolve_match_eligibility(game_duration, queue_id)
 
                 if is_eligible:
-                    db_manager = self.bot.get_cog("GeneralCommands").db
+                    db_manager = self.bot.db
                     linked_discord_id = await db_manager.get_discord_id_by_puuid(puuid)
 
                     if linked_discord_id:

@@ -30,7 +30,7 @@ def resolve_match_eligibility(game_duration: int, queue_id: int) -> tuple[bool, 
     if game_duration < 240:
         return False, "This match was a remake. The Oratrice ignores games that end before they truly begin."
 
-    # We only want Summoner's Rift PvP matches.
+    # We only want Summoner's Rift PvP matches including ARAM
     valid_queues = {400, 420, 430, 440, 490, 450}
     if queue_id not in valid_queues:
         return False, "The Hall of Shame only accepts Summoner's Rift PvP matches. Rotating modes and ARAMs are exempt from judgment."

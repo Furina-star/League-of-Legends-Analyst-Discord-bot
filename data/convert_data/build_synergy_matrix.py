@@ -1,62 +1,71 @@
+"""
+This file build the Synergy_Matrix.json file.
+It reads the ranked_drafts.csv file, calculates the global win rates for each champion pair, and saves it as a JSON file.
+ This is used in the postgame review to show how well the champion duo performed in the current meta.
+"""
+
 import pandas as pd
+import numpy as np
 import json
 import os
 from itertools import combinations
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.dirname(SCRIPT_DIR)
-CSV_PATH = os.path.join(DATA_DIR, "ranked_drafts.csv")
-JSON_PATH = os.path.join(DATA_DIR, "Synergy_Matrix.json")
+SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = str(os.path.dirname(SCRIPT_DIR))
+CSV_PATH = str(os.path.join(DATA_DIR, "ranked_drafts.csv"))
+JSON_PATH = str(os.path.join(DATA_DIR, "Synergy_Matrix.json"))
 
 def build_synergy_matrix():
     print(f"Reading match data from {CSV_PATH}...")
-    df = pd.read_csv(CSV_PATH)
+    df = pd.read_csv(filepath_or_buffer=CSV_PATH, low_memory=False)
+    assert isinstance(df, pd.DataFrame)
 
-    synergy_data = {}
-
-    # Define the columns for blue and red teams
     blue_cols = ['blueTop', 'blueJungle', 'blueMid', 'blueADC', 'blueSupport']
     red_cols = ['redTop', 'redJungle', 'redMid', 'redADC', 'redSupport']
 
-    for index, row in df.iterrows():
-        # Determine who won
-        blue_won = row['blueWin'] == 1
+    # Ensure all champion names are treated as strings
+    for col in blue_cols + red_cols:
+        df[col] = df[col].astype(str)
 
-        # Get the lists of champions for this specific match
-        blue_champs = sorted([str(row[col]) for  col in blue_cols])
-        red_champs = sorted([str(row[col]) for col in red_cols])
+    print("Generating 1,000,000+ champion pairs using Numpy Vectorization...")
 
-        # Generate every ducking possible synergies out there for blue team
-        for duo in combinations(blue_champs, 2):
-            pair_key = f"{duo[0]}-{duo[1]}"
-            if pair_key not in synergy_data:
-                synergy_data[pair_key] = {"wins": 0, "games": 0}
+    pair_data = []
 
-            synergy_data[pair_key]["games"] += 1
-            if blue_won:
-                synergy_data[pair_key]["wins"] += 1
+    # 10 combinations per game
+    blue_win = df['blueWin']
+    for c1, c2 in combinations(blue_cols, 2):
+        # np.where instantly sorts the pair alphabetically across all 50k rows
+        pairs = np.where(df[c1] < df[c2], df[c1] + "-" + df[c2], df[c2] + "-" + df[c1])
+        temp_df = pd.DataFrame({'pair': pairs, 'win': blue_win})
+        pair_data.append(temp_df)
 
-        # Generate the same thing for red team
-        for duo in combinations(red_champs, 2):
-            pair_key = f"{duo[0]}-{duo[1]}"
-            if pair_key not in synergy_data:
-                synergy_data[pair_key] = {"wins": 0, "games": 0}
+    # If blueWin is 1, red_win is 0, and vice versa
+    red_win = 1 - df['blueWin']
+    for c1, c2 in combinations(red_cols, 2):
+        pairs = np.where(df[c1] < df[c2], df[c1] + "-" + df[c2], df[c2] + "-" + df[c1])
+        temp_df = pd.DataFrame({'pair': pairs, 'win': red_win})
+        pair_data.append(temp_df)
 
-            synergy_data[pair_key]["games"] += 1
-            if not blue_won:
-                synergy_data[pair_key]["wins"] += 1
+    # All data into one massive table
+    print("Calculating global synergy win rates...")
+    all_pairs = pd.concat(pair_data, ignore_index=True)
 
-    # Calculate win rates and filter out the noises
-    final_matrix = {}
-    for pair, stats in synergy_data.items():
-        if stats["games"] >= 50:
-            win_rate = stats["wins"] / stats["games"]
-            final_matrix[pair] = {
-                "winrate": round(win_rate, 4),
-                "sample_size": stats["games"]
-            }
+    # Instantly using Pandas GroupBy
+    stats = all_pairs.groupby('pair').agg(
+        wins=('win', 'sum'),
+        games=('win', 'count')
+    )
 
-    # Save the synergy matrix to a JSON file
+    # Filter noise (games >= 50) and calculate final math
+    valid_stats = stats[stats['games'] >= 50].copy()
+    valid_stats['winrate'] = (valid_stats['wins'] / valid_stats['games']).round(4)
+
+    # Clean up the dataframe columns to match your exact JSON structure
+    valid_stats = valid_stats[['winrate', 'games']].rename(columns={'games': 'sample_size'})
+
+    # Convert directly to JSON without a single for-loop
+    final_matrix = valid_stats.to_dict(orient='index')
+
     with open(JSON_PATH, "w") as f:
         json.dump(final_matrix, f, indent=4)
 

@@ -20,6 +20,7 @@ from ai_wrapper import LeagueAI
 from modules.utils.translator import DiscordTranslator
 from modules.utils.logger_algorithm import initialize_logger
 from modules.utils.data_loader import load_champion_mapping, META_DB, ROLE_DB, RUNE_DB
+from modules.utils.database_manager import DatabaseManager
 
 # Get the logging system
 logger = initialize_logger()
@@ -35,6 +36,10 @@ class DiscordBot(commands.Bot):
     # This is a special function that runs once when the bot starts up, before it connects to Discord.
     async def setup_hook(self):
         logger.info("Running one-time setup...")
+
+        # Initialize Database once and attach to bot
+        self.db = DatabaseManager()
+        await self.db.init_db()
 
         # Run the blocking Data Dragon update in a background thread
         self.patch_version, self.champ_dict = await asyncio.to_thread(load_champion_mapping)

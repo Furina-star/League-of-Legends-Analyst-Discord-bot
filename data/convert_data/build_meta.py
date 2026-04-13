@@ -1,3 +1,9 @@
+"""
+This file build the Meta_Champions.json file.
+It reads the ranked_drafts.csv file, calculates the global win rates for each champion, and saves it as a JSON file.
+This is used in the postgame review to show how well the champion performed in the current meta.
+"""
+
 import pandas as pd
 import json
 import os
@@ -6,7 +12,6 @@ SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = str(os.path.dirname(SCRIPT_DIR))
 CSV_PATH = os.path.join(DATA_DIR, "ranked_drafts.csv")
 JSON_PATH = os.path.join(DATA_DIR, "Meta_Champions.json")
-
 
 def build_meta_database():
     print(f"Reading match data from {CSV_PATH}...")

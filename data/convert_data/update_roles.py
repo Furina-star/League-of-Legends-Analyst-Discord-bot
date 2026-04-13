@@ -1,93 +1,67 @@
+"""
+This File, updates Champion_Roles.json where it designates champions to their role according to meta.
+"""
+
 import pandas as pd
 import json
 import os
 
-# Get the directory this exact script is sitting in (.../data/convert_data/)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Move up one level to the parent directory (.../data/)
-DATA_DIR = os.path.dirname(SCRIPT_DIR)
-
-# Construct the absolute paths to your files
-DEFAULT_CSV = os.path.join(DATA_DIR, "ranked_drafts.csv")
-DEFAULT_JSON = os.path.join(DATA_DIR, "Champion_Roles.json")
-
+SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = str(os.path.dirname(SCRIPT_DIR))
+DEFAULT_CSV = str(os.path.join(DATA_DIR, "ranked_drafts.csv"))
+DEFAULT_JSON = str(os.path.join(DATA_DIR, "Champion_Roles.json"))
 
 def generate_dynamic_roles(csv_path=DEFAULT_CSV, output_path=DEFAULT_JSON):
     print(f"Reading match data from {csv_path}...")
-    df = pd.read_csv(csv_path)
 
-    # Map the exact column names from your CSV
-    roles_map = {
-        "TOP": ['blueTop', 'redTop'],
-        "JUNGLE": ['blueJungle', 'redJungle'],
-        "MIDDLE": ['blueMid', 'redMid'],
-        "BOTTOM": ['blueADC', 'redADC'],
-        "UTILITY": ['blueSupport', 'redSupport']
+    # Use low_memory=False to prevent chunking warnings
+    df = pd.read_csv(filepath_or_buffer=csv_path, low_memory=False)
+    assert isinstance(df, pd.DataFrame)
+
+    print(f"Analyzed {len(df)} matches. Sorting champions into meta buckets using vectorization...")
+
+    #  Collapse all 10 role columns into two columns: ['position', 'champion']
+    blue_cols = ['blueTop', 'blueJungle', 'blueMid', 'blueADC', 'blueSupport']
+    red_cols = ['redTop', 'redJungle', 'redMid', 'redADC', 'redSupport']
+
+    melted = df[blue_cols + red_cols].melt(var_name='position', value_name='champion')
+
+    # Standardize specific positions into the 5 main roles
+    role_mapping = {
+        'blueTop': 'TOP', 'redTop': 'TOP',
+        'blueJungle': 'JUNGLE', 'redJungle': 'JUNGLE',
+        'blueMid': 'MIDDLE', 'redMid': 'MIDDLE',
+        'blueADC': 'BOTTOM', 'redADC': 'BOTTOM',
+        'blueSupport': 'UTILITY', 'redSupport': 'UTILITY'
     }
+    melted['role'] = melted['position'].map(role_mapping)
 
-    # Dictionary to track counts: { "Yasuo": {"TOP": 50, "MIDDLE": 200...} }
-    champ_counts = {}
+    # Instantly build a matrix of Champions (rows) vs Roles (columns)
+    counts = pd.crosstab(melted['champion'], melted['role'])
 
-    for role_name, columns in roles_map.items():
-        # Combine blue and red columns for this role
-        all_champs_in_role = pd.concat([df[columns[0]], df[columns[1]]])
-        counts = all_champs_in_role.value_counts()
+    # Calculate total games and drop anomalies (< 10 total games)
+    counts['total'] = counts.sum(axis=1)
+    valid_champs = counts[counts['total'] >= 10].copy()
 
-        for champ, count in counts.items():
-            if champ not in champ_counts:
-                champ_counts[champ] = {"TOP": 0, "JUNGLE": 0, "MIDDLE": 0, "BOTTOM": 0, "UTILITY": 0}
-            champ_counts[champ][role_name] += count
+    # Divide all roles by the total simultaneously to get percentages
+    pct = valid_champs.drop(columns=['total']).div(valid_champs['total'], axis=0)
 
-    print(f"Analyzed {len(df)} matches. Sorting champions into meta buckets...")
-
-    # Set up the new DB structure
+    # Instantly extract the champions that meet the thresholds
     new_db = {
-        "PURE_ADCS": [], "PURE_SUPPORTS": [],
-        "FLEX_BOTS": [], "FLEX_SUPPORTS": [],
-        "KNOWN_MIDS": [], "KNOWN_TOPS": [], "KNOWN_JUNGLES": []
+        "PURE_ADCS": pct[pct['BOTTOM'] > 0.80].index.tolist(),
+        "PURE_SUPPORTS": pct[pct['UTILITY'] > 0.80].index.tolist(),
+        "FLEX_BOTS": pct[(pct['BOTTOM'] > 0.10) & (pct['BOTTOM'] <= 0.80)].index.tolist(),
+        "FLEX_SUPPORTS": pct[(pct['UTILITY'] > 0.10) & (pct['UTILITY'] <= 0.80)].index.tolist(),
+        "KNOWN_MIDS": pct[pct['MIDDLE'] > 0.15].index.tolist(),
+        "KNOWN_TOPS": pct[pct['TOP'] > 0.15].index.tolist(),
+        "KNOWN_JUNGLES": pct[pct['JUNGLE'] > 0.15].index.tolist()
     }
-
-    # Sort logic based on actual mathematical play-rates
-    for champ, roles in champ_counts.items():
-        total_games = sum(roles.values())
-
-        # Skip weird 1-trick anomalies (e.g. someone playing Yuumi Jungle once)
-        if total_games < 10:
-            continue
-
-        # Calculate percentages
-        top_pct = roles["TOP"] / total_games
-        jg_pct = roles["JUNGLE"] / total_games
-        mid_pct = roles["MIDDLE"] / total_games
-        adc_pct = roles["BOTTOM"] / total_games
-        sup_pct = roles["UTILITY"] / total_games
-
-        # Bot Lane Sorting
-        if adc_pct > 0.80:
-            new_db["PURE_ADCS"].append(champ)
-        elif adc_pct > 0.10:  # If played ADC more than 10% of the time
-            new_db["FLEX_BOTS"].append(champ)
-
-        # Support Sorting
-        if sup_pct > 0.80:
-            new_db["PURE_SUPPORTS"].append(champ)
-        elif sup_pct > 0.10:
-            new_db["FLEX_SUPPORTS"].append(champ)
-
-        #  Solo Lanes & Jungle Sorting
-        if mid_pct > 0.15:
-            new_db["KNOWN_MIDS"].append(champ)
-        if top_pct > 0.15:
-            new_db["KNOWN_TOPS"].append(champ)
-        if jg_pct > 0.15:
-            new_db["KNOWN_JUNGLES"].append(champ)
 
     # Save over the old JSON file
     with open(output_path, "w") as f:
         json.dump(new_db, f, indent=4)
 
-    print("Successfully created a data-driven database based on your current patch!")
+    print("Successfully created a highly optimized, data-driven database!")
 
 if __name__ == "__main__":
     generate_dynamic_roles()

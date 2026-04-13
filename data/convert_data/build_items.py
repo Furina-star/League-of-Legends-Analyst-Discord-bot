@@ -6,6 +6,10 @@ import urllib.request
 import json
 import os
 
+# Explicit path casting
+SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
+FILE_PATH = str(os.path.join(SCRIPT_DIR, '..', 'Item_Dictionary.json'))
+
 def update_item_dictionary():
     print("Fetching the latest League of Legends patch version...")
     version_url = "https://ddragon.leagueoflegends.com/api/versions.json"
@@ -20,16 +24,13 @@ def update_item_dictionary():
     with urllib.request.urlopen(item_url) as response:
         item_data = json.loads(response.read().decode())
 
-    clean_dict = {}
-    for item_id, item_info in item_data['data'].items():
-        clean_dict[item_id] = item_info['name']
+    # Dictionary comprehension instantly builds the clean dictionary
+    clean_dict = {str(item_id): item_info['name'] for item_id, item_info in item_data['data'].items()}
 
-    file_path = os.path.join(os.path.dirname(__file__), '..', 'Item_Dictionary.json')
-
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with open(FILE_PATH, 'w', encoding='utf-8') as f:
         json.dump(clean_dict, f, indent=4)
 
-    print(f"Successfully mapped {len(clean_dict)} items and saved to {file_path}!")
+    print(f"Successfully mapped {len(clean_dict)} items and saved to {FILE_PATH}!")
 
 if __name__ == "__main__":
     update_item_dictionary()

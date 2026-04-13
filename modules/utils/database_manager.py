@@ -6,7 +6,7 @@ By centralizing database operations in this class, we can ensure consistent data
 
 import aiosqlite
 import logging
-from utils.logger_algorithm import initialize_logger
+from modules.utils.logger_algorithm import initialize_logger
 
 # Get the logging system
 logger = initialize_logger()
