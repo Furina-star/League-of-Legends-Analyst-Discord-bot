@@ -5,23 +5,27 @@ The cache entries have an expiration time, after which they will be considered s
 """
 
 import aiosqlite
-import json
-import time
-
-# Class to handle caching of Riot API responses in an SQLite database.
-import aiosqlite
 import time
 import json
+import os
 
+SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
+MODULES_DIR = str(os.path.dirname(SCRIPT_DIR))
+ROOT_DIR = str(os.path.dirname(MODULES_DIR))
+
+DEFAULT_DB_PATH = str(os.path.join(ROOT_DIR, "data", "riot_cache.db"))
 
 class RiotCache:
-    def __init__(self, db_path="data/riot_cache.db"):
+    def __init__(self, db_path=DEFAULT_DB_PATH):
         self.db_path = db_path
-        self._db = None  # This will hold our persistent connection!
+        self._db = None
 
     # Creates the database if it doesn't exist and keeps the connection open
     async def setup(self):
         if self._db is None:
+            # 2. Ensure the 'data' directory actually exists before SQLite tries to access it
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
             self._db = await aiosqlite.connect(self.db_path)
             await self._db.execute("""
                 CREATE TABLE IF NOT EXISTS riot_data (
