@@ -279,3 +279,30 @@ def extract_postgame_stats(match_data: dict, puuid: str, match_id: str) -> Optio
         player['rivalStats'] = None
 
     return player
+
+# Instantly resolves abbreviations or partial names to full champion names
+def quick_resolve_champion(raw_name: str, champ_db: dict) -> str:
+    raw = re.sub(r'[^a-zA-Z0-9]', '', raw_name).lower()
+
+    # Common speed aliases
+    aliases = {
+        "j4": "JarvanIV", "mf": "MissFortune", "tf": "TwistedFate",
+        "gp": "Gangplank", "nunu": "Nunu", "renata": "Renata",
+        "asol": "AurelionSol", "yi": "MasterYi", "tk": "TahmKench",
+        "wukong": "MonkeyKing", "lb": "Leblanc", "bardo": "Bard",
+        "ww": "Warwick", "nid": "Nidalee", "cass": "Cassiopeia",
+        "ez": "Ezreal", "cait": "Caitlyn", "tris": "Tristana",
+        "kata": "Katarina", "cho": "Chogath", "rek": "RekSai",
+        "kog": "KogMaw", "naut": "Nautilus", "sej": "Sejuani",
+        "ksante": "KSante", "bel": "Belveth"
+    }
+    if raw in aliases:
+        return aliases[raw]
+
+    # Partial match (e.g., "yas" -> "Yasuo", "lee" -> "Lee Sin")
+    for full_name in champ_db.values():
+        if full_name.lower().startswith(raw):
+            return full_name
+
+    # Fallback if no match is found
+    return raw_name.title().replace(" ", "").replace("'", "")

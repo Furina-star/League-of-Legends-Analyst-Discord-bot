@@ -85,11 +85,12 @@ class StatsCommands(commands.Cog):
                 is_eligible, _ = resolve_match_eligibility(game_duration, queue_id)
 
                 if is_eligible:
-                    linked_discord_id = self.bot.get_cog("GeneralCommands").db.get_discord_id_by_puuid(puuid)
+                    db_manager = self.bot.get_cog("GeneralCommands").db
+                    linked_discord_id = await db_manager.get_discord_id_by_puuid(puuid)
 
                     if linked_discord_id:
                         challenges = player_stats.get('challenges', {})
-                        self.bot.get_cog("GeneralCommands").db.log_match(
+                        await db_manager.log_match(
                             discord_id=linked_discord_id,
                             match_id=history[0],
                             kp=challenges.get('killParticipation', 0),

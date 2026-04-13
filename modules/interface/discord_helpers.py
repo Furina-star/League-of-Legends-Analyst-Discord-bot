@@ -6,7 +6,6 @@ import discord
 from discord import app_commands
 from discord.app_commands import Choice
 
-
 # This is the autocomplete function for server selection in slash commands.
 async def server_autocomplete(interaction: discord.Interaction, current: str) -> list[Choice[str]]: # noqa
     servers = list(interaction.client.server_dict.keys())

@@ -100,8 +100,15 @@ class LeagueAI:
         ]
 
         raw_champs = [draft_dict[col] for col in correct_order]
+
+        # Safe encoding that never crashes on 'unknown'
+        encoded_list = [
+            self.le.transform([champ])[0] if champ in self.known_classes else 0
+            for champ in raw_champs
+        ]
+
         processed_champs = [champ if champ in self.known_classes else 'Unknown' for champ in raw_champs]
-        encoded_champs = self.le.transform(processed_champs)
+        self.le.transform(processed_champs)
 
         # Extract the raw champion names from the dictionary to calculate synergy.
         blue_champs = raw_champs[:5]
@@ -114,7 +121,7 @@ class LeagueAI:
         meta_list = [self.meta_db.get(champ, config.BASE_WINRATE) for champ in raw_champs]
 
         # Convert everything to tensors
-        x_tensor = torch.from_numpy(encoded_champs).long().unsqueeze(0)
+        x_tensor = torch.tensor([encoded_list], dtype=torch.long)
         synergy_tensor = torch.tensor([[blue_synergy, red_synergy]], dtype=torch.float32)
         meta_tensor = torch.tensor([meta_list], dtype=torch.float32)
 
@@ -124,7 +131,8 @@ class LeagueAI:
         return prediction, 1.0 - prediction, blue_synergy, red_synergy
 
     # This function calculates the winrates
-    def apply_hybrid_algorithm(self, base_blue_prob: float, blue_winrates: List[float],
+    @staticmethod
+    def apply_hybrid_algorithm(base_blue_prob: float, blue_winrates: List[float],
                                red_winrates: List[float], blue_masteries: List[int],
                                red_masteries: List[int]) -> Tuple[float, float]:
 
@@ -151,3 +159,110 @@ class LeagueAI:
         final_blue_prob = max(0.01, min(0.99, final_blue_prob))
 
         return final_blue_prob, 1.0 - final_blue_prob
+
+    # Sorts a list of champion names into standard [Top, Jgl, Mid, ADC, Sup] order
+    @staticmethod
+    def sort_draft_strings(draft_list: list, role_db: dict) -> list:
+        positions = ['top', 'jungle', 'mid', 'adc', 'support']
+        sorted_draft = ["Unknown"] * 5
+        champ_roles = LeagueAI.get_champ_roles(role_db)
+
+        # Keep track of champions that need flexible placement
+        flex_champs = []
+
+        #Strict one-role champions ONLY
+        for champ in draft_list:
+            roles = [r for r in champ_roles.get(champ, []) if r in positions]
+
+            # If they only have 1 valid role and the slot is empty, lock them in
+            if len(roles) == 1 and sorted_draft[positions.index(roles[0])] == "Unknown":
+                sorted_draft[positions.index(roles[0])] = champ
+            else:
+                flex_champs.append((champ, roles))
+
+        # Greedily assign flexible champions
+        for champ, roles in flex_champs:
+            placed = False
+            for role in roles:
+                idx = positions.index(role)
+                if sorted_draft[idx] == "Unknown":
+                    sorted_draft[idx] = champ
+                    placed = True
+                    break
+
+            # True fallback (if team comp is completely chaotic/off-meta)
+            if not placed and "Unknown" in sorted_draft:
+                empty_idx = sorted_draft.index("Unknown")
+                sorted_draft[empty_idx] = champ
+
+        return sorted_draft
+
+    # Rapidly simulates the current draft state against all valid champions for a target role,
+    def suggest_champion(self, target_role: str, user_team: str, blue_dict: dict, red_dict: dict, role_db: dict):
+        target_role = target_role.lower()
+        champ_roles = self.get_champ_roles(role_db)
+
+        # Filter the role database to get valid champions for the target role
+        valid_champions = [
+            champ for champ, roles in champ_roles.items()
+            if target_role in roles
+        ]
+        results = []
+
+        for champ in valid_champions:
+            # Prevent suggesting a champion that is already picked
+            if champ in blue_dict.values() or champ in red_dict.values():
+                continue
+
+            test_blue = blue_dict.copy()
+            test_red = red_dict.copy()
+
+            # Inject the test champion directly into the target dictionary slot
+            if user_team.lower() == 'blue':
+                test_blue[target_role] = champ
+            else:
+                test_red[target_role] = champ
+
+            try:
+                # Format exactly as the PyTorch model expects
+                draft_dict = {
+                    'blueTopChamp': test_blue.get('top', 'Unknown'),
+                    'blueJungleChamp': test_blue.get('jungle', 'Unknown'),
+                    'blueMiddleChamp': test_blue.get('mid', 'Unknown'),
+                    'blueADCChamp': test_blue.get('adc', 'Unknown'),
+                    'blueSupportChamp': test_blue.get('support', 'Unknown'),
+                    'redTopChamp': test_red.get('top', 'Unknown'),
+                    'redJungleChamp': test_red.get('jungle', 'Unknown'),
+                    'redMiddleChamp': test_red.get('mid', 'Unknown'),
+                    'redADCChamp': test_red.get('adc', 'Unknown'),
+                    'redSupportChamp': test_red.get('support', 'Unknown')
+                }
+
+                prediction = self.predict_match(draft_dict)
+                win_prob = prediction[0] if user_team.lower() == 'blue' else prediction[1]
+                results.append((champ, win_prob))
+            except Exception as e:
+                logger.error(f"AI Coach Simulation failed for {champ}: {e}")
+                continue
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:3]
+
+    # Translates the Riot Category DB into a Champion-First DB
+    @staticmethod
+    def get_champ_roles(role_db: dict) -> dict:
+        inverted = {}
+        mapping = {
+            "top": ["KNOWN_TOPS"],
+            "jungle": ["KNOWN_JUNGLES"],
+            "mid": ["KNOWN_MIDS"],
+            "adc": ["PURE_ADCS", "FLEX_BOTS"],
+            "support": ["PURE_SUPPORTS", "FLEX_SUPPORTS"]
+        }
+        for standard_role, categories in mapping.items():
+            for cat in categories:
+                for champ in role_db.get(cat, []):
+                    if champ not in inverted:
+                        inverted[champ] = []
+                    inverted[champ].append(standard_role)
+        return inverted

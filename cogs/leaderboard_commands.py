@@ -1,12 +1,12 @@
 """
 This cog is responsible for handling commands regarding about leaderboards and such.
-Adding more future implementation i hope.
+Adding more future implementation I hope.
 """
 
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.database_manager import DatabaseManager
+from modules.utils.database_manager import DatabaseManager
 
 class LeaderboardCommands(commands.Cog):
     def __init__(self, bot):
@@ -18,7 +18,7 @@ class LeaderboardCommands(commands.Cog):
     async def hallofshame(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
-        stats = self.db.get_hall_of_shame()
+        stats = await self.db.get_hall_of_shame()
 
         embed = discord.Embed(
             title="🏛️ The Hall of Shame",

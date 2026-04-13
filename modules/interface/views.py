@@ -3,9 +3,10 @@ Button and dropdowns like that should be here, so that they can be easily import
 """
 
 import discord
-
 from modules.interface.embed_formatter import build_lastgame_embed
-from modules.utils.parsers import extract_postgame_stats
+from modules.utils.parsers import extract_postgame_stats, quick_resolve_champion
+
+# Unique Logger for this module, with a filter to suppress specific warnings about views being added to messages multiple times
 
 
 # This class handles the button for '/predict'
@@ -75,3 +76,149 @@ class MatchCycleView(discord.ui.View):
             await self.update_message(interaction)
         else:
             await interaction.response.send_message("You are already looking at the most recent performance!", ephemeral=True)
+
+# This class handles champion input for '/coach'
+class DraftInputModal(discord.ui.Modal):
+    def __init__(self, dashboard_view, team_color: str, target_role: str):
+        super().__init__(title=f"Add {team_color} {target_role.title()}")
+        self.dashboard = dashboard_view
+        self.team_color = team_color
+        self.target_role = target_role
+
+        self.champ_input = discord.ui.TextInput(
+            label="Champion Name (or abbreviation)",
+            placeholder="e.g., j4, yi, Volibear, Ashe",
+            required=True,
+            max_length=20
+        )
+        self.add_item(self.champ_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        champ_name = quick_resolve_champion(self.champ_input.value, self.dashboard.champ_dict)
+
+        if champ_name not in self.dashboard.champ_dict.values():
+            self.dashboard.error_msg = f"'{self.champ_input.value}' is not a valid champion!"
+            await self.dashboard.update_dashboard(interaction)
+            return
+
+        if champ_name in self.dashboard.blue_dict.values() or champ_name in self.dashboard.red_dict.values():
+            self.dashboard.error_msg = f"{champ_name} is already locked in elsewhere!"
+            await self.dashboard.update_dashboard(interaction)
+            return
+
+        # Direct Injection, It goes exactly where you tell it to go.
+        if self.team_color == "Blue":
+            self.dashboard.blue_dict[self.target_role] = champ_name
+        else:
+            self.dashboard.red_dict[self.target_role] = champ_name
+
+        # Clear any previous errors on success
+        self.dashboard.error_msg = None
+        await self.dashboard.update_dashboard(interaction)
+
+# This class is the draft button for /coach
+class DraftButton(discord.ui.Button):
+    def __init__(self, team: str, role: str, row: int, dashboard):
+        emotes = {"top": "⚔️", "jungle": "🌲", "mid": "🧙", "adc": "🏹", "support": "🛡️"}
+        color = discord.ButtonStyle.primary if team == "Blue" else discord.ButtonStyle.danger
+        display_label = "ADC" if role == "adc" else role.title()
+        super().__init__(label=display_label, emoji=emotes[role], style=color, row=row)
+        self.team = team
+        self.role = role
+        self.dashboard = dashboard
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(DraftInputModal(self.dashboard, self.team, self.role))
+
+# This class creates the dashboard for '/coach'
+class LiveDraftDashboard(discord.ui.View):
+    def __init__(self, ai_system, role: str, user_team: str, role_db: dict, champ_dict: dict):
+        super().__init__(timeout=600)
+        self.ai = ai_system
+        self.role = role.lower()
+        self.user_team = user_team.title()
+        self.role_db = role_db
+        self.champ_dict = champ_dict
+
+        positions = ['top', 'jungle', 'mid', 'adc', 'support']
+        self.blue_dict = dict.fromkeys(positions, "Unknown")
+        self.red_dict = dict.fromkeys(positions, "Unknown")
+        self.error_msg = None
+
+        positions = ['top', 'jungle', 'mid', 'adc', 'support']
+        for r in positions:
+            btn = DraftButton("Blue", r, 0, self)
+            # Lock out the user's specific role slot!
+            if self.user_team == "Blue" and self.role == r:
+                btn.disabled = True
+            self.add_item(btn)
+
+        for r in positions:
+            btn = DraftButton("Red", r, 1, self)
+            if self.user_team == "Red" and self.role == r:
+                btn.disabled = True
+            self.add_item(btn)
+
+        # Add Reset button
+        reset_btn = discord.ui.Button(label="Reset Draft", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+
+        async def reset_callback(interaction):
+            self.blue_dict = dict.fromkeys(positions, "Unknown")
+            self.red_dict = dict.fromkeys(positions, "Unknown")
+            self.error_msg = None
+            await interaction.response.defer()
+            await self.update_dashboard(interaction)
+
+        reset_btn.callback = reset_callback
+        self.add_item(reset_btn)
+
+    async def update_dashboard(self, interaction: discord.Interaction):
+        top_picks = self.ai.suggest_champion(self.role, self.user_team, self.blue_dict, self.red_dict, self.role_db)
+
+        # Embed color also reflects error state or team color
+        desc = f"Simulating optimal **{self.role.title()}** picks for the **{self.user_team}** side."
+        if self.error_msg:
+            desc = f"🚨 **ERROR: {self.error_msg}**\n\n" + desc
+
+        if self.error_msg:
+            embed_color = discord.Color.red()
+        elif self.user_team == "Blue":
+            embed_color = discord.Color.blue()
+        else:
+            embed_color = discord.Color.red()
+
+        embed = discord.Embed(
+            title="🧠 Furina's Live Draft Coach",
+            description=desc,
+            color=embed_color
+        )
+
+        if not top_picks:
+            embed.add_field(name="⚠️ Standby", value="Waiting for more data to simulate...", inline=False)
+        else:
+            for rank, (champ, prob) in enumerate(top_picks, 1):
+                embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
+
+        # Create display copies so we can inject the "You" tag without corrupting the AI math
+        disp_blue = self.blue_dict.copy()
+        disp_red = self.red_dict.copy()
+
+        if self.user_team == "Blue":
+            disp_blue[self.role] = f"✨ **{interaction.user.display_name}** (You)"
+        else:
+            disp_red[self.role] = f"✨ **{interaction.user.display_name}** (You)"
+
+        role_emojis = {"top": "⚔️ Top", "jungle": "🌲 Jgl", "mid": "🧙 Mid", "adc": "🏹 ADC", "support": "🛡️ Sup"}
+        positions = ['top', 'jungle', 'mid', 'adc', 'support']
+
+        blue_display = [f"{role_emojis[r]}: {disp_blue[r] if disp_blue[r] != 'Unknown' else '---'}" for r in positions]
+        red_display = [f"{role_emojis[r]}: {disp_red[r] if disp_red[r] != 'Unknown' else '---'}" for r in positions]
+
+        embed.add_field(name="🟦 Blue Team", value="\n".join(blue_display), inline=True)
+        embed.add_field(name="🟥 Red Team", value="\n".join(red_display), inline=True)
+
+        try:
+            await interaction.edit_original_response(embed=embed, view=self)
+        except discord.errors.InteractionResponded:
+            pass

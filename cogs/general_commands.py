@@ -129,19 +129,19 @@ class GeneralCommands(commands.Cog):
                     "⚠️ Could not find that Riot ID. Ensure the spelling and region are correct.")
 
             # Anti-Fraud Validation
-            existing_owner = self.db.get_discord_id_by_puuid(puuid)
+            existing_owner = await self.db.get_discord_id_by_puuid(puuid)
             if existing_owner and str(existing_owner) != str(interaction.user.id):
                 return await interaction.followup.send(
                     f"⚠️ Identity theft is a serious crime! That Riot ID is already claimed by <@{existing_owner}>.")
 
             # Call the helper from state_resolvers.py
-            should_abort, msg = resolve_link_state(self.db, interaction.user.id, puuid, new_riot_id)
+            should_abort, msg = await resolve_link_state(self.db, interaction.user.id, puuid, new_riot_id)
 
             if should_abort:
                 return await interaction.followup.send(msg)
 
             # Database execution
-            self.db.link_account(interaction.user.id, puuid, new_riot_id)
+            await self.db.link_account(interaction.user.id, puuid, new_riot_id)
             await interaction.followup.send(msg)
 
         except sqlite3.Error as db_err:
@@ -158,12 +158,12 @@ class GeneralCommands(commands.Cog):
     @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     async def unlink(self, interaction: discord.Interaction):
         try:
-            current_link = self.db.get_linked_account(interaction.user.id)
+            current_link = await self.db.get_linked_account(interaction.user.id)
             if not current_link:
                 await interaction.response.send_message( "⚠️ You don't have an account linked to the Oratrice. You are already free.", ephemeral=True)
                 return
 
-            self.db.unlink_account(interaction.user.id)
+            await self.db.unlink_account(interaction.user.id)
             await interaction.response.send_message(f"✅ Your account (**{current_link[0]}**) has been successfully unlinked. The Oratrice will no longer track your performances.", ephemeral=True)
 
         except sqlite3.Error as db_err:
@@ -172,4 +172,6 @@ class GeneralCommands(commands.Cog):
 
 # Setup hook to load the Cog
 async def setup(bot):
-    await bot.add_cog(GeneralCommands(bot))
+    cog = GeneralCommands(bot)
+    await cog.db.init_db()
+    await bot.add_cog(cog)

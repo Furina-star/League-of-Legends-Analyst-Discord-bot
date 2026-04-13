@@ -30,7 +30,7 @@ class DiscordBot(commands.Bot):
         # We set intents and turn off the default help menu here
         intents = discord.Intents.default()
         intents.message_content = False
-        super().__init__(command_prefix="!", intents=intents, help_command=None)
+        super().__init__(command_prefix="/", intents=discord.Intents.default())
 
     # This is a special function that runs once when the bot starts up, before it connects to Discord.
     async def setup_hook(self):

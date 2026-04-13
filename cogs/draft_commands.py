@@ -9,7 +9,7 @@ from discord.ext import commands
 from discord import app_commands
 import logging
 from modules.interface.embed_formatter import build_predict_embeds, build_scout_embed
-from modules.interface.views import PredictView
+from modules.interface.views import PredictView, LiveDraftDashboard
 from discord.utils import escape_mentions
 from modules.utils.parsers import parse_riot_id, sort_team_roles, format_team_display
 from modules.interface.discord_helpers import server_autocomplete
@@ -101,8 +101,8 @@ class DraftCommands(commands.Cog):
             red_players = [(p['puuid'], p.get('summonerId'), p['championId']) for p in raw_red_team]
 
             # Use our new helper to do the heavy asynchronous lifting!
-            blue_winrates, blue_masteries, avg_blue_wr = await self.riot._fetch_team_stats(blue_players, server)
-            red_winrates, red_masteries, avg_red_wr = await self.riot._fetch_team_stats(red_players, server)
+            blue_winrates, blue_masteries, avg_blue_wr = await self.riot.fetch_team_stats(blue_players, server)
+            red_winrates, red_masteries, avg_red_wr = await self.riot.fetch_team_stats(red_players, server)
 
             # Pass everything into the Hybrid Algorithm
             final_blue_prob, final_red_prob = self.ai.apply_hybrid_algorithm(
@@ -178,7 +178,7 @@ class DraftCommands(commands.Cog):
 
             # Building the Discord Embed
             enemy_team_id = 200 if user_team == 100 else 100
-            bot_entries, player_results = await self.riot._fetch_enemy_data(
+            bot_entries, player_results = await self.riot.fetch_enemy_data(
                 match_data, enemy_team_id, server, region, self.champ_dict, self.keystone_db, self.role_db
             )
             embed = build_scout_embed(server, safe_name, bot_entries, player_results, self.ai.meta_db)
@@ -194,6 +194,52 @@ class DraftCommands(commands.Cog):
         except KeyError as e:
             logger.error(f"Missing expected data from Riot API in scout: {e}")
             await interaction.followup.send("Riot returned unexpected match data.")
+
+    # A draft pick coach
+    # This is where it suggests champions based on current draft picks
+    @app_commands.command(name="coach", description="Spawns an interactive live draft dashboard for rapid AI coaching.")
+    @app_commands.describe(role="The role you are drafting for", team="Your team side")
+    @app_commands.choices(role=[
+        app_commands.Choice(name="Top", value="top"),
+        app_commands.Choice(name="Jungle", value="jungle"),
+        app_commands.Choice(name="Mid", value="mid"),
+        app_commands.Choice(name="ADC", value="adc"),
+        app_commands.Choice(name="Support", value="support")
+    ], team=[
+        app_commands.Choice(name="Blue", value="blue"),
+        app_commands.Choice(name="Red", value="red")
+    ])
+    async def coach(self, interaction: discord.Interaction, role: app_commands.Choice[str],team: app_commands.Choice[str]):
+        dashboard = LiveDraftDashboard(self.ai, role.value, team.value, self.role_db, self.champ_dict)
+        empty_dict = dict.fromkeys(['top', 'jungle', 'mid', 'adc', 'support'], "Unknown")
+        top_picks = self.ai.suggest_champion(role.value, team.value, empty_dict, empty_dict, self.role_db)
+
+        embed = discord.Embed(
+            title="🧠 Furina's Live Draft Coach",
+            description=f"Simulating optimal **{role.name}** picks for the **{team.name}** side.",
+            color=discord.Color.blue() if team.value == "blue" else discord.Color.red()
+        )
+
+        for rank, (champ, prob) in enumerate(top_picks, 1):
+            embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
+
+        # Apply the exact same Vertical Lane formatting for the initial empty board
+        role_emojis = ["⚔️ Top", "🌲 Jgl", "🧙 Mid", "🏹 ADC", "🛡️ Sup"]
+        positions = ['top', 'jungle', 'mid', 'adc', 'support']
+        role_idx = positions.index(role.value)
+
+        blue_display = []
+        red_display = []
+        for i in range(5):
+            b_champ = f"✨ **{interaction.user.display_name}** (You)" if team.value == "blue" and i == role_idx else "---"
+            r_champ = f"✨ **{interaction.user.display_name}** (You)" if team.value == "red" and i == role_idx else "---"
+            blue_display.append(f"{role_emojis[i]}: {b_champ}")
+            red_display.append(f"{role_emojis[i]}: {r_champ}")
+
+        embed.add_field(name="🟦 Blue Team", value="\n".join(blue_display), inline=True)
+        embed.add_field(name="🟥 Red Team", value="\n".join(red_display), inline=True)
+
+        await interaction.response.send_message(embed=embed, view=dashboard)
 
 # Setup Hook or something whatever this is called.
 async def setup(bot):

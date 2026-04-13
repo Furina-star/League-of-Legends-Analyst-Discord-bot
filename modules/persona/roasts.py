@@ -192,9 +192,9 @@ class RoastGenerator:
                 (lambda: p.role in ['TOP', 'JUNGLE'] and p.damage < 20000, "Rabadon's Deathcap in the Top lane or Jungle with minimal damage. Somewhere, a real AP mage is weeping softly at what you have done to their signature item.")
             ],
             "Void Staff": [(lambda: p.damage < 12000, "Void Staff is specifically designed to shred magic resistance so your spells deal more damage. Yours dealt no damage with or without the penetration. The enemies were not the problem.")],
-            "Shadowflame": [(lambda: p.role in ['TOP', 'JUNGLE', 'BOTTOM'], "Shadowflame on a non-mage. The item grants ability power and magic penetration — two stats you are biologically incapable of using in your current role. Bold. Wrong. But bold.")],
+            "Shadowflame": [(lambda: p.role in ['TOP', 'JUNGLE', 'BOTTOM'], "Shadowflame?. The item grants ability power and magic penetration — two stats you are biologically incapable of using in your current role. Bold. Wrong. But bold.")],
             "Infinity Edge": [
-                (lambda: p.role in ['UTILITY', 'JUNGLE'], "Infinity Edge on a Support or Jungler. You didn't buy a crit amplifier. You bought a very expensive trophy your teammates had to carry around their necks all game."),
+                (lambda: p.role in ['UTILITY'], "Infinity Edge on a Support. You didn't buy a crit amplifier. You bought a very expensive trophy your teammates had to carry around their necks all game."),
                 (lambda: p.damage < 12000, "Infinity Edge. Maximum critical strike damage. You built it and the damage numbers suggest your critical strikes were hitting enemies made entirely of feathers.")
             ],
             "Heartsteel": [
@@ -298,7 +298,7 @@ class RoastGenerator:
     def _micro_play_rules(self) -> list:
         p = self.p
         return [
-            (lambda: p.skillshots_dodged >= 20 and p.win, f"You dodged {p.skillshots_dodged} skillshots. You were dancing through their abilities like a prima ballerina on opening night. A truly untouchable performance!"),
+            (lambda: p.skillshots_dodged >= 100 and p.win, f"You dodged {p.skillshots_dodged} skillshots. You were dancing through their abilities like a prima ballerina on opening night. A truly untouchable performance!"),
             (lambda: p.skillshots_dodged < 5 and p.deaths >= 8 and not p.win, "You dodged fewer than five skillshots the entire game. I assume your strategy was to simply absorb every single ability with your face? How remarkably... courageous."),
             (lambda: p.dodge_streak >= 8, f"A dodge streak of {p.dodge_streak}? You were practically a ghost on the Rift. The enemy team must have felt like they were trying to punch the wind."),
             (lambda: p.solo_kills >= 3 and p.win, f"{p.solo_kills} solo kills! You didn't just win; you hunted them down and proved your individual superiority. The audience loves a dominant protagonist."),
