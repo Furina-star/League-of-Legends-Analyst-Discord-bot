@@ -3,11 +3,12 @@ discord.py==2.7.1
 aiohttp==3.13.5
 requests==2.33.1
 pytest==9.0.3
+Pillow==12.2.0
 
 # --- Security & Environment ---
 python-dotenv==1.2.2
 aiosqlite==0.22.1
-sentry-sdk==2.57.0
+sentry-sdk==2.58.0
 
 # --- AI & Machine Learning (Inference Only) ---
 torch==2.11.0

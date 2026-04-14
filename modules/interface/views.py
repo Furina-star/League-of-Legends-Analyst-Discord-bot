@@ -5,9 +5,7 @@ Button and dropdowns like that should be here, so that they can be easily import
 import discord
 from modules.interface.embed_formatter import build_lastgame_embed, build_draft_embed
 from modules.utils.parsers import extract_postgame_stats, quick_resolve_champion
-
-# Unique Logger for this module, with a filter to suppress specific warnings about views being added to messages multiple times
-
+from modules.interface.canvas_engine import render_draft_board
 
 # This class handles the button for '/predict'
 class PredictView(discord.ui.View):
@@ -115,6 +113,8 @@ class DraftInputModal(discord.ui.Modal):
             await self.dashboard.update_dashboard(interaction)
             return
 
+        self.dashboard.save_state() # Take a snapshot before modifying!
+
         # Direct Injection, It goes exactly where you tell it to go.
         if self.team_color == "Blue":
             self.dashboard.blue_dict[self.target_role] = champ_name
@@ -153,6 +153,7 @@ class LiveDraftDashboard(discord.ui.View):
         self.blue_dict = dict.fromkeys(positions, "Unknown")
         self.red_dict = dict.fromkeys(positions, "Unknown")
         self.error_msg = None
+        self.history = []
         self.banned_champs = []
         self.last_ban_input = ""
 
@@ -170,6 +171,29 @@ class LiveDraftDashboard(discord.ui.View):
                 btn.disabled = True
             self.add_item(btn)
 
+        # Add Undo button
+        undo_btn = discord.ui.Button(label="Undo", style=discord.ButtonStyle.secondary, emoji="⏪", row=2)
+
+        async def undo_callback(interaction):
+            if len(self.history) == 0:
+                self.error_msg = "Nothing to undo!"
+                await interaction.response.defer()
+                return await self.update_dashboard(interaction)
+
+            # Pop the last saved state and overwrite the current board
+            last_state = self.history.pop()
+            self.blue_dict = last_state['blue'].copy()
+            self.red_dict = last_state['red'].copy()
+            self.banned_champs = last_state['bans'].copy()
+            self.error_msg = None
+
+            await interaction.response.defer()
+            await self.update_dashboard(interaction)
+            return None
+
+        undo_btn.callback = undo_callback
+        self.add_item(undo_btn)
+
         # Ban button
         ban_btn = discord.ui.Button(label="Add Ban", style=discord.ButtonStyle.secondary, emoji="🚫", row=2)
         async def ban_callback(interaction):
@@ -185,12 +209,22 @@ class LiveDraftDashboard(discord.ui.View):
             self.blue_dict = dict.fromkeys(positions, "Unknown")
             self.red_dict = dict.fromkeys(positions, "Unknown")
             self.banned_champs = []
+            self.last_ban_input = ""
+            self.history = []
             self.error_msg = None
             await interaction.response.defer()
             await self.update_dashboard(interaction)
 
         reset_btn.callback = reset_callback
         self.add_item(reset_btn)
+
+    # Takes a snapshot of the board before a change happens
+    def save_state(self):
+        self.history.append({
+            'blue': self.blue_dict.copy(),
+            'red': self.red_dict.copy(),
+            'bans': self.banned_champs.copy()
+        })
 
     async def update_dashboard(self, interaction: discord.Interaction):
         top_picks = self.ai.suggest_champion(self.role, self.user_team, self.blue_dict, self.red_dict, self.role_db, self.banned_champs)
@@ -204,12 +238,20 @@ class LiveDraftDashboard(discord.ui.View):
             blue_dict=self.blue_dict,
             red_dict=self.red_dict,
             role_db=self.role_db,
-            user_name=interaction.user.display_name,
             banned_champs=self.banned_champs
         )
 
+        image_buffer = await render_draft_board(
+            self.blue_dict,
+            self.red_dict,
+            self.role,
+            interaction.user.display_name,
+            self.user_team
+        )
+        file = discord.File(fp=image_buffer, filename="draft_board.png")
+
         try:
-            await interaction.edit_original_response(embed=embed, view=self)
+            await interaction.edit_original_response(embed=embed, view=self, attachments=[file])
         except discord.errors.InteractionResponded:
             pass
 
@@ -268,6 +310,7 @@ class BanInputModal(discord.ui.Modal):
             valid_bans_to_add.append(champ_name)
 
         # If everything passes, inject all the valid bans at once
+        self.dashboard.save_state()
         self.dashboard.banned_champs.extend(valid_bans_to_add)
         self.dashboard.last_ban_input = ""
         self.dashboard.error_msg = None

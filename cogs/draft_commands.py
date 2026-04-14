@@ -13,6 +13,7 @@ from modules.interface.views import PredictView, LiveDraftDashboard
 from discord.utils import escape_mentions
 from modules.utils.parsers import parse_riot_id, sort_team_roles, format_team_display
 from modules.interface.discord_helpers import server_autocomplete
+from modules.interface.canvas_engine import render_draft_board
 
 # Get the logging system
 logger = logging.getLogger(__name__)
@@ -226,7 +227,7 @@ class DraftCommands(commands.Cog):
         # Run first prediction
         top_picks = self.ai.suggest_champion(role.value, user_team_str, empty_dict, empty_dict, self.role_db, [])
 
-        # 🔥 Call the centralized formatter!
+        # Call the centralized formatter!
         embed = build_draft_embed(
             role=role.value,
             user_team=user_team_str,
@@ -235,11 +236,19 @@ class DraftCommands(commands.Cog):
             blue_dict=empty_dict,
             red_dict=empty_dict,
             role_db=self.role_db,
-            user_name=interaction.user.display_name,
             banned_champs=[]
         )
 
-        await interaction.followup.send(embed=embed, view=dashboard)
+        image_buffer = await render_draft_board(
+            blue_dict=empty_dict,
+            red_dict=empty_dict,
+            role=role.value,
+            user_name=interaction.user.display_name,
+            user_team=user_team_str
+        )
+        file = discord.File(fp=image_buffer, filename="draft_board.png")
+
+        await interaction.followup.send(embed=embed, view=dashboard, file=file)
 
 # Setup Hook or something whatever this is called.
 async def setup(bot):

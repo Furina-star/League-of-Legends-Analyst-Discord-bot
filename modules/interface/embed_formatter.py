@@ -159,7 +159,7 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
     return embed
 
 # For the draft coach command
-def build_draft_embed(role: str, user_team: str, error_msg: str | None, top_picks: list, blue_dict: dict, red_dict: dict, role_db: dict, user_name: str, banned_champs: list) -> discord.Embed:
+def build_draft_embed(role: str, user_team: str, error_msg: str | None, top_picks: list, blue_dict: dict, red_dict: dict, role_db: dict, banned_champs: list) -> discord.Embed:
     desc = f"Simulating optimal **{role.title()}** picks for the **{user_team}** side."
     if error_msg:
         desc = f"🚨 **ERROR: {error_msg}**\n\n" + desc
@@ -191,22 +191,6 @@ def build_draft_embed(role: str, user_team: str, error_msg: str | None, top_pick
         for rank, (champ, prob) in enumerate(top_picks, 1):
             embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
 
-    # Lane Formatting
-    disp_blue = blue_dict.copy()
-    disp_red = red_dict.copy()
-
-    if user_team == "Blue":
-        disp_blue[role] = f"✨ **{user_name}** (You)"
-    else:
-        disp_red[role] = f"✨ **{user_name}** (You)"
-
-    role_emojis = {"top": "⚔️ Top", "jungle": "🌲 Jgl", "mid": "🧙 Mid", "adc": "🏹 ADC", "support": "🛡️ Sup"}
-    positions = ['top', 'jungle', 'mid', 'adc', 'support']
-
-    blue_display = [f"{role_emojis[r]}: {disp_blue[r] if disp_blue[r] != 'Unknown' else '---'}" for r in positions]
-    red_display = [f"{role_emojis[r]}: {disp_red[r] if disp_red[r] != 'Unknown' else '---'}" for r in positions]
-
-    embed.add_field(name="🟦 Blue Team", value="\n".join(blue_display), inline=True)
-    embed.add_field(name="🟥 Red Team", value="\n".join(red_display), inline=True)
+    embed.set_image(url="attachment://draft_board.png")
 
     return embed
