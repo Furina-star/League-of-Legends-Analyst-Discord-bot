@@ -37,75 +37,102 @@ async def fetch_icon(session: aiohttp.ClientSession, champ: str) -> Image.Image:
 
 
 async def render_draft_board(blue_dict: dict, red_dict: dict, role: str, user_name: str, user_team: str) -> io.BytesIO:
-    # Load and prepare the Background Image
+    # 1. Background (🔥 FIX: Increased height from 480 to 560 for the header)
     bg_path = "data/assets/background.jpg"
     if os.path.exists(bg_path):
-        # Load the custom background and resize it to canvas dimensions
-        background = Image.open(bg_path).convert("RGBA").resize((800, 480))
-
-        # Add a semi-transparent dark overlay so the text pops
-        overlay = Image.new("RGBA", (800, 480), (0, 0, 0, 80))
+        background = Image.open(bg_path).convert("RGBA").resize((800, 560))
+        overlay = Image.new("RGBA", (800, 560), (0, 0, 0, 80))
         canvas = Image.alpha_composite(background, overlay)
     else:
-        # Fallback to the classic Discord dark gray if the file is missing
-        canvas = Image.new("RGBA", (800, 480), (43, 45, 49, 255))
+        canvas = Image.new("RGBA", (800, 560), (43, 45, 49, 255))
 
     draw = ImageDraw.Draw(canvas)
 
-    # Load the special "Selected" icon
     try:
-        select_icon = Image.open("data/assets/champion_series_icon.png").convert("RGBA").resize((30, 30))
-    except:
+        font = ImageFont.truetype("data/assets/BeaufortForLOL-Bold.ttf", 28)
+        header_font = ImageFont.truetype("data/assets/BeaufortForLOL-Bold.ttf", 36)
+        vs_font = ImageFont.truetype("data/assets/BeaufortForLOL-Bold.ttf", 58)
+    except Exception:
+        try:
+            font = ImageFont.truetype("arial.ttf", 28)
+            header_font = ImageFont.truetype("arial.ttf", 36)
+            vs_font = ImageFont.truetype("arial.ttf", 58)
+        except IOError:
+            font = ImageFont.load_default()
+            header_font = ImageFont.load_default()
+            vs_font = ImageFont.load_default()
+
+    # 3. Selected Icon Overlay
+    try:
+        select_icon = Image.open("data/assets/champion_series_icon.png").convert("RGBA").resize((80, 80))
+    except Exception:
         select_icon = None
 
-    try:
-        font = ImageFont.truetype("arial.ttf", 28)
-    except IOError:
-        font = ImageFont.load_default()
+    # 🎨 Colors
+    WHITE_TEXT = (255, 255, 255)
+    GOLD_TEXT = (255, 215, 0)
+    BLUE_TEXT = (43, 109, 240)  # #2B6DF0
+    RED_TEXT = (240, 43, 43)  # #F02B2B
+
+    # 🏆 NEW: Helper function to easily center the beautiful headers
+    def draw_centered(text, x, y, f, fill):
+        bbox = draw.textbbox((0, 0), text, font=f)
+        w = bbox[2] - bbox[0]
+        # Shadow
+        draw.text((x - w / 2 + 2, y + 2), text, fill=(0, 0, 0, 200), font=f)
+        # Main Text
+        draw.text((x - w / 2, y), text, fill=fill, font=f)
+
+    draw_centered("BLUE TEAM", 200, 30, header_font, BLUE_TEXT)
+    draw_centered("RED TEAM", 600, 30, header_font, RED_TEXT)
+    draw_centered("VS", 400, 42, vs_font, GOLD_TEXT)
 
     positions = ['top', 'jungle', 'mid', 'adc', 'support']
 
-    # Download/Load all 10 champion images simultaneously
     async with aiohttp.ClientSession() as session:
         blue_icons = await asyncio.gather(*[fetch_icon(session, blue_dict[p]) for p in positions])
         red_icons = await asyncio.gather(*[fetch_icon(session, red_dict[p]) for p in positions])
 
-    # Define colors for the labels
-    BLUE_TEXT = (88, 101, 242)  # Discord Blurple
-    RED_TEXT = (237, 66, 69)  # Discord Red
-    WHITE_TEXT = (255, 255, 255)  # Discord Secondary Text (Gray)
-    GOLD_TEXT = (255, 215, 0)
+    # 4. Rounded Corners Mask
+    mask = Image.new("L", (80, 80), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle((0, 0, 80, 80), radius=12, fill=255)
 
     # Draw Blue Side
-    y = 20
+    y = 100  # 🔥 FIX: Shifted down from 20 to 100 to leave space for the banner!
     for i, icon in enumerate(blue_icons):
-        canvas.paste(icon, (40, y), icon)
-        current_val = blue_dict[positions[i]]
-        is_user_slot = (user_team == "Blue" and positions[i] == role)
+        canvas.paste(icon, (40, y), mask)
 
+        is_user_slot = (user_team == "Blue" and positions[i] == role)
+        if is_user_slot and select_icon:
+            canvas.paste(select_icon, (40, y), select_icon)
+
+        current_val = blue_dict[positions[i]]
         if current_val == "Unknown":
-            display_text = f"[{positions[i].upper()}]"
+            formatted_pos = "ADC" if positions[i] == "adc" else positions[i].title()
+            display_text = f"[{formatted_pos}]"
             text_color = GOLD_TEXT if is_user_slot else WHITE_TEXT
         else:
             display_text = f"{current_val} (You)" if is_user_slot else current_val
             text_color = BLUE_TEXT
 
-        if is_user_slot and select_icon:
-            canvas.paste(select_icon, (140, y - 5), select_icon)
-            draw.text((180, y + 25), display_text, fill=text_color, font=font)
-        else:
-            draw.text((140, y + 25), display_text, fill=text_color, font=font)
+        draw.text((142, y + 27), display_text, fill=(0, 0, 0, 200), font=font)
+        draw.text((140, y + 25), display_text, fill=text_color, font=font)
         y += 90
 
     # Draw Red Side
-    y = 20
+    y = 100  # 🔥 FIX: Shifted down from 20 to 100 to leave space for the banner!
     for i, icon in enumerate(red_icons):
-        canvas.paste(icon, (680, y), icon)
-        current_val = red_dict[positions[i]]
-        is_user_slot = (user_team == "Red" and positions[i] == role)
+        canvas.paste(icon, (680, y), mask)
 
+        is_user_slot = (user_team == "Red" and positions[i] == role)
+        if is_user_slot and select_icon:
+            canvas.paste(select_icon, (680, y), select_icon)
+
+        current_val = red_dict[positions[i]]
         if current_val == "Unknown":
-            display_text = f"[{positions[i].upper()}]"
+            formatted_pos = "ADC" if positions[i] == "adc" else positions[i].title()
+            display_text = f"[{formatted_pos}]"
             text_color = GOLD_TEXT if is_user_slot else WHITE_TEXT
         else:
             display_text = f"{current_val} (You)" if is_user_slot else current_val
@@ -114,14 +141,10 @@ async def render_draft_board(blue_dict: dict, red_dict: dict, role: str, user_na
         text_bbox = draw.textbbox((0, 0), display_text, font=font)
         text_x = 660 - text_bbox[2]
 
-        if is_user_slot and select_icon:
-            canvas.paste(select_icon, (text_x - 40, y - 5), select_icon)
-            draw.text((text_x, y + 25), display_text, fill=text_color, font=font)
-        else:
-            draw.text((text_x, y + 25), display_text, fill=text_color, font=font)
+        draw.text((text_x + 2, y + 27), display_text, fill=(0, 0, 0, 200), font=font)
+        draw.text((text_x, y + 25), display_text, fill=text_color, font=font)
         y += 90
 
-    # Save to memory stream
     buffer = io.BytesIO()
     canvas.save(buffer, format="PNG")
     buffer.seek(0)
