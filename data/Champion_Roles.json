@@ -271,5 +271,68 @@
         "Nunu",
         "Lillia",
         "Kindred"
+    ],
+    "DAMAGE_AD": [
+        "Lucian", "Draven", "Kalista", "Jhin", "Caitlyn", "Ezreal", "Ashe", "Xayah",
+        "Sivir", "Zeri", "Aphelios", "MissFortune", "Nilah", "Twitch", "Jinx", "Samira",
+        "Vayne", "Varus", "Smolder", "Tristana", "Senna", "Sion", "Irelia", "Yone",
+        "Yasuo", "Tryndamere", "Nasus", "Quinn", "Zed", "Qiyana", "Naafiri", "Akshan",
+        "Talon", "Jayce", "Ambessa", "KSante", "Renekton", "Jax", "Gnar", "Fiora",
+        "Aatrox", "Olaf", "Gangplank", "Yorick", "Camille", "Shen", "Darius", "Garen",
+        "DrMundo", "Riven", "Sett", "Kled", "Urgot", "Volibear", "Illaoi", "Warwick",
+        "Udyr", "Rengar", "Shyvana", "MonkeyKing", "Trundle", "RekSai", "XinZhao",
+        "Nocturne", "MasterYi", "LeeSin", "Belveth", "Viego", "Kayn", "Briar", "Graves",
+        "Vi", "Shaco", "Khazix", "Hecarim", "Kindred"
+    ],
+    "DAMAGE_AP": [
+        "Kaisa", "Neeko", "Seraphine", "Sona", "Janna", "Bard", "Yuumi", "Renata",
+        "Nami", "Milio", "Cassiopeia", "Heimerdinger", "Swain", "Karthus", "Velkoz",
+        "AurelionSol", "Mel", "Brand", "KogMaw", "Veigar", "Ziggs", "Gragas", "Anivia",
+        "FiddleSticks", "Zilean", "Leblanc", "Elise", "Hwei", "Xerath", "Morgana", "Zyra",
+        "Lux", "Akali", "Singed", "Aurora", "Vladimir", "Ryze", "Sylas", "Lissandra",
+        "Chogath", "Galio", "Malzahar", "Viktor", "Azir", "Zoe", "Ahri", "Orianna",
+        "Diana", "Ekko", "Kassadin", "Annie", "TwistedFate", "Syndra", "Katarina", "Vex",
+        "Fizz", "Taliyah", "Nunu", "Rumble", "Malphite", "Gwen", "Mordekaiser", "Teemo",
+        "Nidalee", "Evelynn", "Lillia", "Amumu", "Sejuani", "Maokai", "Zac"
+    ],
+    "FRONTLINE": [
+        "Malphite", "Ornn", "Sion", "Maokai", "Zac", "Sejuani", "Amumu", "Rammus",
+        "Nautilus", "Leona", "Alistar", "Braum", "TahmKench", "Shen", "Poppy",
+        "KSante", "Chogath", "DrMundo", "Volibear", "Sett", "Darius", "Garen",
+        "Illaoi", "Renekton", "Mordekaiser", "Udyr", "Skarner", "Trundle", "Galio",
+        "Taric", "Rell", "Blitzcrank", "Thresh"
+    ],
+    "RANGED": [
+        "Ahri", "Anivia", "Annie", "AurelionSol", "Azir", "Brand", "Cassiopeia",
+        "Heimerdinger", "Hwei", "Karma", "Karthus", "Leblanc", "Lissandra", "Lux",
+        "Malzahar", "Mel", "Morgana", "Neeko", "Orianna", "Ryze", "Seraphine",
+        "Smolder", "Syndra", "Taliyah", "TwistedFate", "Veigar", "Velkoz", "Vex",
+        "Viktor", "Vladimir", "Xerath", "Ziggs", "Zoe", "Zyra", "Aphelios", "Ashe",
+        "Caitlyn", "Corki", "Draven", "Ezreal", "Jhin", "Jinx", "Kaisa", "Kalista",
+        "Kindred", "KogMaw", "Lucian", "MissFortune", "Quinn", "Samira", "Senna",
+        "Sivir", "Teemo", "Tristana", "Twitch", "Varus", "Vayne", "Xayah", "Zeri",
+        "Bard", "Janna", "Lulu", "Milio", "Nami", "Renata", "Sona", "Soraka", "Yuumi"
+    ],
+    "HARD_CC": [
+        "Leona", "Nautilus", "Amumu", "Sejuani", "Zac", "Maokai", "Ornn", "Rell",
+        "Alistar", "Thresh", "Blitzcrank", "Malzahar", "Lissandra", "Ashe", "Skarner",
+        "Galio", "Morgana", "Neeko", "Kennen", "Annie", "Pyke", "Braum", "Renata",
+        "Rammus", "Shen", "Vi", "Gragas", "Poppy"
+    ],
+    "ENGAGE": [
+        "Malphite", "Amumu", "Leona", "Zac", "Sejuani", "Nautilus", "Rell", "Ornn",
+        "Maokai", "Kled", "Hecarim", "Nocturne", "JarvanIV", "Vi", "MonkeyKing",
+        "Rakan", "Gragas", "Sion", "Alistar", "Rammus", "Camille", "Diana", "XinZhao",
+        "Azir"
+    ],
+    "WAVECLEAR": [
+        "Anivia", "Viktor", "Sivir", "Ahri", "Azir", "Malzahar", "Ziggs", "Xerath",
+        "Hwei", "Velkoz", "Ryze", "Syndra", "AurelionSol", "Tristana", "Jinx",
+        "Xayah", "Caitlyn", "Lissandra", "Taliyah", "Orianna", "Lux", "Brand"
+    ],
+    "SCALING": [
+        "Kayle", "Kassadin", "Smolder", "AurelionSol", "Vayne", "Jinx", "Aphelios",
+        "Zeri", "KogMaw", "Senna", "Nasus", "Vladimir", "Veigar", "Gwen", "Karthus",
+        "Sona", "Twitch", "MasterYi", "Fiora", "Camille", "Jax", "Zaahen", "Yone", "Yasuo"
     ]
 }

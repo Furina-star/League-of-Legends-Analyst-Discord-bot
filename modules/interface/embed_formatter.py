@@ -6,7 +6,7 @@ It takes in the relevant data and constructs a Discord Embed object with the app
 import discord
 from typing import List, Tuple
 from modules.utils.parsers import ParsedStats
-from modules.persona.tags import get_pregame_tags, get_performance_tags
+from modules.persona.tags import get_pregame_tags, get_performance_tags, get_draft_warnings
 from modules.persona.verdicts import generate_furina_verdict
 from modules.utils.data_loader import ITEM_DB, RUNE_DB, SPELL_DB
 import logging
@@ -42,11 +42,7 @@ def build_help_embed() -> discord.Embed:
     return embed
 
 # For predict commands in cogs
-def build_predict_embeds(blue_prob: float, red_prob: float,
-                         avg_blue_wr: float, avg_red_wr: float,
-                         blue_synergy: float, red_synergy: float,
-                         blue_display: List[str], red_display: List[str]) -> Tuple[discord.Embed, discord.Embed]:
-
+def build_predict_embeds(blue_prob: float, red_prob: float, avg_blue_wr: float, avg_red_wr: float, blue_synergy: float, red_synergy: float, blue_display: List[str], red_display: List[str]) -> Tuple[discord.Embed, discord.Embed]:
     description = f"**Blue Win Chance:** {blue_prob * 100:.1f}%\n**Red Win Chance:** {red_prob * 100:.1f}%"
 
     # Blue
@@ -159,5 +155,58 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
 
     # Footer
     embed.set_footer(text=f"Mode: {p.game_mode} | Match ID: {p.match_id}")
+
+    return embed
+
+# For the draft coach command
+def build_draft_embed(role: str, user_team: str, error_msg: str | None, top_picks: list, blue_dict: dict, red_dict: dict, role_db: dict, user_name: str, banned_champs: list) -> discord.Embed:
+    desc = f"Simulating optimal **{role.title()}** picks for the **{user_team}** side."
+    if error_msg:
+        desc = f"🚨 **ERROR: {error_msg}**\n\n" + desc
+
+    # Team Composition Warnings
+    current_draft = blue_dict.values() if user_team == "Blue" else red_dict.values()
+    locked_champs = [c for c in current_draft if c != "Unknown"]
+
+    if warnings := get_draft_warnings(locked_champs, role_db):
+        desc += "\n\n" + "\n".join(warnings)
+
+    # Embed Color
+    embed_color = discord.Color.red() if error_msg or user_team != "Blue" else discord.Color.blue()
+
+    embed = discord.Embed(
+        title="🧠 Furina's Live Draft Coach",
+        description=desc,
+        color=embed_color
+    )
+
+    # Bans
+    if banned_champs:
+        embed.add_field(name="🚫 Banned Champions", value=", ".join(banned_champs), inline=False)
+
+    # Predictions
+    if not top_picks:
+        embed.add_field(name="⚠️ Standby", value="Waiting for more data to simulate...", inline=False)
+    else:
+        for rank, (champ, prob) in enumerate(top_picks, 1):
+            embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
+
+    # Lane Formatting
+    disp_blue = blue_dict.copy()
+    disp_red = red_dict.copy()
+
+    if user_team == "Blue":
+        disp_blue[role] = f"✨ **{user_name}** (You)"
+    else:
+        disp_red[role] = f"✨ **{user_name}** (You)"
+
+    role_emojis = {"top": "⚔️ Top", "jungle": "🌲 Jgl", "mid": "🧙 Mid", "adc": "🏹 ADC", "support": "🛡️ Sup"}
+    positions = ['top', 'jungle', 'mid', 'adc', 'support']
+
+    blue_display = [f"{role_emojis[r]}: {disp_blue[r] if disp_blue[r] != 'Unknown' else '---'}" for r in positions]
+    red_display = [f"{role_emojis[r]}: {disp_red[r] if disp_red[r] != 'Unknown' else '---'}" for r in positions]
+
+    embed.add_field(name="🟦 Blue Team", value="\n".join(blue_display), inline=True)
+    embed.add_field(name="🟥 Red Team", value="\n".join(red_display), inline=True)
 
     return embed

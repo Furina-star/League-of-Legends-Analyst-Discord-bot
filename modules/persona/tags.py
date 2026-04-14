@@ -298,6 +298,41 @@ def get_pregame_tags(mastery: int, is_otp: bool, is_duo: bool, is_autofilled: bo
     engine = PregameTagEngine(mastery, is_otp, is_duo, is_autofilled, meta_wr, rank_str)
     return engine.generate_tags()
 
+# The performance tags that calls out pre game tags based on their performance.
 def get_performance_tags(stats: dict) -> str:
     engine = PerformanceTagEngine(stats)
     return engine.generate_tags()
+
+# Calculates team composition warnings based on macro tags, used in '/coach'
+def get_draft_warnings(locked_champs: list, role_db: dict) -> list[str]:
+    if not locked_champs:
+        return []
+
+    tags = ["DAMAGE_AD", "DAMAGE_AP", "FRONTLINE", "RANGED", "HARD_CC", "ENGAGE", "WAVECLEAR", "SCALING"]
+    counts = {
+        tag: sum(1 for c in locked_champs if c in set(role_db.get(tag, [])))
+        for tag in tags
+    }
+
+    warnings = []
+
+    # Damage Type Warnings
+    if counts["DAMAGE_AD"] >= 4:
+        warnings.append("⚠️ **Warning: Heavy AD.** Enemy armor stacking will be highly effective.")
+    elif counts["DAMAGE_AP"] >= 4:
+        warnings.append("⚠️ **Warning: Heavy AP.** Enemy Magic Resist stacking will counter you.")
+
+    # Data-driven Structure Warnings
+    if len(locked_champs) >= 4:
+        rules = [
+            (counts["FRONTLINE"] == 0, "🛡️ **Warning: Glass Cannon Comp.** No dedicated frontline detected. Highly vulnerable to hard engage."),
+            (counts["RANGED"] == 0, "🏹 **Warning: Full Melee Comp.** Your team lacks ranged damage and is highly susceptible to kiting."),
+            (counts["HARD_CC"] == 0, "🛑 **Warning: No Hard CC.** Your team has extremely limited ways to lock down priority targets."),
+            (counts["ENGAGE"] == 0, "🏃 **Warning: No Engage.** Your team lacks reliable tools to force favorable team fights."),
+            (counts["WAVECLEAR"] == 0, "🌊 **Warning: No Waveclear.** Your team will struggle to break base sieges or defend inhibitors."),
+            (counts["SCALING"] >= 3, "⏳ **Warning: Extreme Scaling.** Very weak early game detected. You will likely concede early objectives.")
+        ]
+        # A single generator extracts all triggered warnings at once
+        warnings.extend(msg for condition, msg in rules if condition)
+
+    return warnings

@@ -46,6 +46,12 @@ def generate_dynamic_roles(csv_path=DEFAULT_CSV, output_path=DEFAULT_JSON):
     # Divide all roles by the total simultaneously to get percentages
     pct = valid_champs.drop(columns=['total']).div(valid_champs['total'], axis=0)
 
+    # Load the existing JSON to preserve our static Macro categories!
+    existing_db = {}
+    if os.path.exists(output_path):
+        with open(output_path, "r") as f:
+            existing_db = json.load(f)
+
     # Instantly extract the champions that meet the thresholds
     new_db = {
         "PURE_ADCS": pct[pct['BOTTOM'] > 0.80].index.tolist(),
@@ -54,7 +60,16 @@ def generate_dynamic_roles(csv_path=DEFAULT_CSV, output_path=DEFAULT_JSON):
         "FLEX_SUPPORTS": pct[(pct['UTILITY'] > 0.10) & (pct['UTILITY'] <= 0.80)].index.tolist(),
         "KNOWN_MIDS": pct[pct['MIDDLE'] > 0.15].index.tolist(),
         "KNOWN_TOPS": pct[pct['TOP'] > 0.15].index.tolist(),
-        "KNOWN_JUNGLES": pct[pct['JUNGLE'] > 0.15].index.tolist()
+        "KNOWN_JUNGLES": pct[pct['JUNGLE'] > 0.15].index.tolist(),
+
+        "DAMAGE_AD": existing_db.get("DAMAGE_AD", []),
+        "DAMAGE_AP": existing_db.get("DAMAGE_AP", []),
+        "FRONTLINE": existing_db.get("FRONTLINE", []),
+        "RANGED": existing_db.get("RANGED", []),
+        "HARD_CC": existing_db.get("HARD_CC", []),
+        "ENGAGE": existing_db.get("ENGAGE", []),
+        "WAVECLEAR": existing_db.get("WAVECLEAR", []),
+        "SCALING": existing_db.get("SCALING", [])
     }
 
     # Save over the old JSON file

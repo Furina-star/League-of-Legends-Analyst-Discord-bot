@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import logging
-from modules.interface.embed_formatter import build_predict_embeds, build_scout_embed
+from modules.interface.embed_formatter import build_predict_embeds, build_scout_embed, build_draft_embed
 from modules.interface.views import PredictView, LiveDraftDashboard
 from discord.utils import escape_mentions
 from modules.utils.parsers import parse_riot_id, sort_team_roles, format_team_display
@@ -198,49 +198,48 @@ class DraftCommands(commands.Cog):
     # A draft pick coach
     # This is where it suggests champions based on current draft picks
     @app_commands.command(name="coach", description="Spawns an interactive live draft dashboard for rapid AI coaching.")
-    @app_commands.describe(role="The role you are drafting for", team="Your team side")
-    @app_commands.choices(role=[
-        app_commands.Choice(name="Top", value="top"),
-        app_commands.Choice(name="Jungle", value="jungle"),
-        app_commands.Choice(name="Mid", value="mid"),
-        app_commands.Choice(name="ADC", value="adc"),
-        app_commands.Choice(name="Support", value="support")
-    ], team=[
-        app_commands.Choice(name="Blue", value="blue"),
-        app_commands.Choice(name="Red", value="red")
-    ])
+    @app_commands.choices(
+        role=[
+            app_commands.Choice(name="Top", value="top"),
+            app_commands.Choice(name="Jungle", value="jungle"),
+            app_commands.Choice(name="Mid", value="mid"),
+            app_commands.Choice(name="ADC", value="adc"),
+            app_commands.Choice(name="Support", value="support"),
+        ],
+        team=[
+            app_commands.Choice(name="Blue", value="blue"),
+            app_commands.Choice(name="Red", value="red"),
+        ]
+    )
     @app_commands.checks.cooldown(1, 5, key=lambda i: i.user.id)
-    async def coach(self, interaction: discord.Interaction, role: app_commands.Choice[str],team: app_commands.Choice[str]):
-        dashboard = LiveDraftDashboard(self.ai, role.value, team.value, self.role_db, self.champ_dict)
-        empty_dict = dict.fromkeys(['top', 'jungle', 'mid', 'adc', 'support'], "Unknown")
-        top_picks = self.ai.suggest_champion(role.value, team.value, empty_dict, empty_dict, self.role_db, [])
+    async def coach(self, interaction: discord.Interaction, role: app_commands.Choice[str],
+                    team: app_commands.Choice[str]):
+        await interaction.response.defer()
 
-        embed = discord.Embed(
-            title="🧠 Furina's Live Draft Coach",
-            description=f"Simulating optimal **{role.name}** picks for the **{team.name}** side.",
-            color=discord.Color.blue() if team.value == "blue" else discord.Color.red()
+        # Initialize empty state
+        empty_dict = dict.fromkeys(['top', 'jungle', 'mid', 'adc', 'support'], "Unknown")
+        user_team_str = team.value.title()
+
+        # Spawn the view
+        dashboard = LiveDraftDashboard(self.ai, role.value, user_team_str, self.role_db, self.champ_dict)
+
+        # Run first prediction
+        top_picks = self.ai.suggest_champion(role.value, user_team_str, empty_dict, empty_dict, self.role_db, [])
+
+        # 🔥 Call the centralized formatter!
+        embed = build_draft_embed(
+            role=role.value,
+            user_team=user_team_str,
+            error_msg=None,
+            top_picks=top_picks,
+            blue_dict=empty_dict,
+            red_dict=empty_dict,
+            role_db=self.role_db,
+            user_name=interaction.user.display_name,
+            banned_champs=[]
         )
 
-        for rank, (champ, prob) in enumerate(top_picks, 1):
-            embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
-
-        # Apply the exact same Vertical Lane formatting for the initial empty board
-        role_emojis = ["⚔️ Top", "🌲 Jgl", "🧙 Mid", "🏹 ADC", "🛡️ Sup"]
-        positions = ['top', 'jungle', 'mid', 'adc', 'support']
-        role_idx = positions.index(role.value)
-
-        blue_display = []
-        red_display = []
-        for i in range(5):
-            b_champ = f"✨ **{interaction.user.display_name}** (You)" if team.value == "blue" and i == role_idx else "---"
-            r_champ = f"✨ **{interaction.user.display_name}** (You)" if team.value == "red" and i == role_idx else "---"
-            blue_display.append(f"{role_emojis[i]}: {b_champ}")
-            red_display.append(f"{role_emojis[i]}: {r_champ}")
-
-        embed.add_field(name="🟦 Blue Team", value="\n".join(blue_display), inline=True)
-        embed.add_field(name="🟥 Red Team", value="\n".join(red_display), inline=True)
-
-        await interaction.response.send_message(embed=embed, view=dashboard)
+        await interaction.followup.send(embed=embed, view=dashboard)
 
 # Setup Hook or something whatever this is called.
 async def setup(bot):

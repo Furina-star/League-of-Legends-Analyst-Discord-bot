@@ -3,7 +3,7 @@ Button and dropdowns like that should be here, so that they can be easily import
 """
 
 import discord
-from modules.interface.embed_formatter import build_lastgame_embed
+from modules.interface.embed_formatter import build_lastgame_embed, build_draft_embed
 from modules.utils.parsers import extract_postgame_stats, quick_resolve_champion
 
 # Unique Logger for this module, with a filter to suppress specific warnings about views being added to messages multiple times
@@ -195,52 +195,18 @@ class LiveDraftDashboard(discord.ui.View):
     async def update_dashboard(self, interaction: discord.Interaction):
         top_picks = self.ai.suggest_champion(self.role, self.user_team, self.blue_dict, self.red_dict, self.role_db, self.banned_champs)
 
-        # Embed color also reflects error state or team color
-        desc = f"Simulating optimal **{self.role.title()}** picks for the **{self.user_team}** side."
-        if self.error_msg:
-            desc = f"🚨 **ERROR: {self.error_msg}**\n\n" + desc
-
-        if self.error_msg:
-            embed_color = discord.Color.red()
-        elif self.user_team == "Blue":
-            embed_color = discord.Color.blue()
-        else:
-            embed_color = discord.Color.red()
-
-        embed = discord.Embed(
-            title="🧠 Furina's Live Draft Coach",
-            description=desc,
-            color=embed_color
+        # Call build_draft_embed from embed_formatter.py
+        embed = build_draft_embed(
+            role=self.role,
+            user_team=self.user_team,
+            error_msg=self.error_msg,
+            top_picks=top_picks,
+            blue_dict=self.blue_dict,
+            red_dict=self.red_dict,
+            role_db=self.role_db,
+            user_name=interaction.user.display_name,
+            banned_champs=self.banned_champs
         )
-
-        # Render the banned champions inside the embed if they exist
-        if self.banned_champs:
-            embed.add_field(name="🚫 Banned Champions", value=", ".join(self.banned_champs), inline=False)
-
-        # Render the AI suggestions
-        if not top_picks:
-            embed.add_field(name="⚠️ Standby", value="Waiting for more data to simulate...", inline=False)
-        else:
-            for rank, (champ, prob) in enumerate(top_picks, 1):
-                embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
-
-        # Create display copies so we can inject the "You" tag without corrupting the AI math
-        disp_blue = self.blue_dict.copy()
-        disp_red = self.red_dict.copy()
-
-        if self.user_team == "Blue":
-            disp_blue[self.role] = f"✨ **{interaction.user.display_name}** (You)"
-        else:
-            disp_red[self.role] = f"✨ **{interaction.user.display_name}** (You)"
-
-        role_emojis = {"top": "⚔️ Top", "jungle": "🌲 Jgl", "mid": "🧙 Mid", "adc": "🏹 ADC", "support": "🛡️ Sup"}
-        positions = ['top', 'jungle', 'mid', 'adc', 'support']
-
-        blue_display = [f"{role_emojis[r]}: {disp_blue[r] if disp_blue[r] != 'Unknown' else '---'}" for r in positions]
-        red_display = [f"{role_emojis[r]}: {disp_red[r] if disp_red[r] != 'Unknown' else '---'}" for r in positions]
-
-        embed.add_field(name="🟦 Blue Team", value="\n".join(blue_display), inline=True)
-        embed.add_field(name="🟥 Red Team", value="\n".join(red_display), inline=True)
 
         try:
             await interaction.edit_original_response(embed=embed, view=self)
