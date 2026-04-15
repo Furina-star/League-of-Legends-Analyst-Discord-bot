@@ -37,6 +37,7 @@ def build_help_embed() -> discord.Embed:
     embed.add_field(name="⚔️ `/predict`",value="Calculates win probability for a live match.\n**Requires:** Server and Riot ID",inline=False)
     embed.add_field(name="🕵️ `/scout`",value="Builds an enemy dossier for a live match.\n**Requires:** Server and Riot ID", inline=False)
     embed.add_field(name="🏆 `/postgame`",value="Ruthlessly analyzes your most recent match, including lane rival diff and performance grades.\n**Requires:** Server and Riot ID",inline=False)
+    embed.add_field(name="🧠 `/coach`", value="Simulates optimal champion picks for your specific role and team side during the draft phase.", inline=False)
 
     # Live Match
     embed.add_field(name="👑 Admin Configuration", value="**`/setup_broadcast`** — Automatically builds the `#live-matches` infrastructure so the Oratrice can track and announce linked players entering live games.", inline=False)
@@ -118,9 +119,9 @@ def build_scout_embed(server: str, game_name: str, bots: list, players: list, me
         opgg_url = f"https://www.op.gg/summoners/{server[:2].lower()}/{safe_id}"
 
         value = (
-            f"> 🏅 **Rank:** `{rank}`  |  [🔗 OP.GG]({opgg_url})\n"
-            f"> 🔮 **Rune:** `{keystone_display}`\n"
-            f"> 🗡️ **Mastery:** `{mastery:,}` pts{tag_display}"
+            f"> 🏅 **Rank:** {rank}  |  [🔗 OP.GG]({opgg_url})\n"
+            f"> 🔮 **Rune:** {keystone_display}\n"
+            f"> 🗡️ **Mastery:** {mastery:,} pts{tag_display}"
         )
 
         embed.add_field(
@@ -139,62 +140,75 @@ def build_lastgame_embed(server: str, riot_id: str, stats: dict, patch_version: 
 
     embed = discord.Embed(title=title, color=color)
 
-    # Helper to add fields quickly
-    def add_row(fields):
-        for name, value in fields:
-            embed.add_field(name=name, value=value, inline=True)
+    # Convert seconds to MM:SS format
+    minutes, seconds = divmod(p.time, 60)
+    duration_str = f"{minutes}:{seconds:02d}"
 
-    # Grid Rows
-    add_row([
-        ("👤 Champion", f"**{p.champ}**\nGrade: **{p.get_grade()}**"),
-        ("⚔️ KDA", f"**{p.kills}/{p.deaths}/{p.assists}**\n({p.kp_percent:.0f}% KP)"),
-        ("💥 Damage", f"**{p.damage:,}** DMG")
-    ])
+    # The Verdict
+    verdict_text = generate_furina_verdict(stats)
 
-    add_row([
-        ("🌾 Farming", f"**{p.cs} CS**\n({p.cs_per_min:.1f}/min)"),
-        ("💰 Gold", f"**{p.gold:,}** G"),
-        ("👁️ Vision", f"**{p.vision_score}** Score\n**{p.vision_wards}** Pinks")
-    ])
+    # Top level description
+    embed.description = (
+        f"⚖️ **FURINA'S FINAL JUDGMENT**\n"
+        f"*\"{verdict_text}\"*\n\n"
+        f"**Match ID:** `{p.match_id}`  |  **Duration:** `{duration_str}`\n"
+        f"{'▬' * 28}"
+    )
+
+    # Calculate Lane Rival Diffs
+    dmg_diff_str = "N/A"
+    gold_diff_str = "N/A"
+    rival_display = "Unknown"
 
     if p.rival and p.role not in ["", "Invalid"]:
+        rival_display = p.rival.get('championName', 'Unknown')
         dmg_diff = p.damage - p.rival.get('totalDamageDealtToChampions', 0)
         gold_diff = p.gold - p.rival.get('goldEarned', 0)
-        add_row([
-            (f"🆚 {p.role.capitalize()} Rival", f"**{p.rival.get('championName', 'Unknown')}**"),
-            ("💥 DMG Diff", f"**{'📈' if dmg_diff > 0 else '📉'} {dmg_diff:+,}**"),
-            ("🪙 Gold Diff", f"**{'📈' if gold_diff > 0 else '📉'} {gold_diff:+,}**")
-        ])
 
-    add_row([
-        ("🔮 Keystone", RUNE_DB.get(str(p.keystone_id), "None")),
-        ("🏮 Trinket", ITEM_DB.get(str(p.trinket), "None")),
-        ("✨ Spells", f"{SPELL_DB.get(str(p.spell1_id), 'Unknown')} & {SPELL_DB.get(str(p.spell2_id), 'Unknown')}")
-    ])
+        # Format with plus signs and commas
+        dmg_diff_str = f"{'+' if dmg_diff > 0 else ''}{dmg_diff:,}"
+        gold_diff_str = f"{'+' if gold_diff > 0 else ''}{gold_diff:,}"
 
-    # Items
+    # Build the Terminal Tree for Performance
+    performance_text = (
+        f"> ⚔️ **Matchup:** `{p.champ}` vs `{rival_display}`\n"
+        f"> └ DMG Diff: `{dmg_diff_str}`  |  Gold Diff: `{gold_diff_str}`\n"
+        f"> \n"
+        f"> 📊 **Combat Data:**\n"
+        f"> └ KDA: `{p.kills}/{p.deaths}/{p.assists}` (`{p.kp_percent:.1f}%` KP)\n"
+        f"> └ CS/Min: `{p.cs_per_min:.1f}`  |  Vision: `{p.vision_score}`\n"
+        f"> \n"
+        f"> 🏅 **Final Grade:** `{p.get_grade()}`"
+    )
+
+    embed.add_field(name="🎯 Match Performance", value=performance_text, inline=False)
+
+    keystone = RUNE_DB.get(str(p.keystone_id), "None")
+    spell1 = SPELL_DB.get(str(p.spell1_id), "Unknown")
+    spell2 = SPELL_DB.get(str(p.spell2_id), "Unknown")
     items = [ITEM_DB.get(str(i), 'Unknown') for i in p.items if i != 0]
-    if len(items) > 3:
-        row1 = " • ".join(items[:3])
-        row2 = " • ".join(items[3:])
-        build_string = f"{row1}\n{row2}"
-    else:
-        build_string = " • ".join(items) if items else "Empty"
-    embed.add_field(name="🎒 Final Build", value=build_string, inline=False)
+    build_string = " • ".join(items) if items else "Empty"
 
-    # Performance Tags
+    loadout_text = (
+        f"> 🔮 **Runes & Spells:**\n"
+        f"> └ `{keystone}`  |  `{spell1}` & `{spell2}`\n"
+        f"> \n"
+        f"> 🎒 **Final Build:**\n"
+        f"> └ {build_string}"
+    )
+
+    embed.add_field(name="⚙️ Equipment", value=loadout_text, inline=False)
+
+    # Performance Tags & Verdict
     if perf_tags := get_performance_tags(stats):
         embed.add_field(name="🏷️ Match Tags", value=perf_tags, inline=False)
 
-    # Verdict
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(name="⚖️ Furina's Verdict", value=f"*{generate_furina_verdict(stats)}*", inline=False)
-
+    # Visuals
     safe_champ = p.champ.replace(" ", "").replace("'", "").title()
     embed.set_thumbnail(url=f"https://ddragon.leagueoflegends.com/cdn/{patch_version}/img/champion/{safe_champ}.png")
 
     # Footer
-    embed.set_footer(text=f"Mode: {p.game_mode} | Match ID: {p.match_id}")
+    embed.set_footer(text=f"\n\nMode: {p.game_mode}")
 
     return embed
 

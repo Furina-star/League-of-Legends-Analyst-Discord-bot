@@ -98,26 +98,28 @@ class ParsedStats:
 
     # Calculates a rough performance letter grade.
     def get_grade(self) -> str:
-        score = 0
+        kda = (self.kills + self.assists) / max(1, self.deaths)
 
-        # Calculate Score using Boolean Math (True = 1, False = 0)
-        # Example: If KP is 70%, it evaluates to (1) + (1) = 2 points!
-        score += (self.kp_percent > 45.0) + (self.kp_percent > 65.0)
+        # KDA & KP Summations
+        score = sum(kda >= t for t in (2.0, 3.5, 5.0)) - (2 * (kda < 1.0))
+        score += sum(self.kp_percent >= t for t in (40.0, 60.0))
 
+        # Role-Specific Objectives
         if self.role == "UTILITY":
-            score += (self.vision_score > self.minutes) + (self.vision_score > self.minutes * 2)
+            score += sum(self.vision_score >= self.minutes * t for t in (1.0, 1.5, 2.2))
         else:
-            score += (self.cs_per_min > 6.0) + (self.cs_per_min > 8.0)
+            limits = (4.0, 5.0, 6.5) if self.role == "JUNGLE" else (5.0, 6.5, 8.0)
+            score += sum(self.cs_per_min >= t for t in limits)
 
-        # Deaths give points for being low, and subtract 2 for feeding
-        score += (self.deaths <= 5) + (self.deaths <= 2)
-        score -= 2 * (self.deaths >= 10)
+        # Penalties & Combat Bonus
+        score += (self.deaths == 0) - (self.deaths >= 7) - (self.deaths >= 10)
 
-        # Convert score to letter grade without massive if/elif chains
-        grade_map = [(5, "S+"), (4, "A"), (3, "B"), (1, "C"), (0, "D")]
+        dpm_calc = self.dpm if self.dpm > 0 else (self.damage / max(1.0, self.minutes))
+        score += (dpm_calc >= 800.0 or self.healing >= 15000)
 
-        # next() searches the map top-to-bottom and returns the first match. Default is "F".
-        return next((grade for limit, grade in grade_map if score >= limit), "F")
+        # O(1) Array Lookup for Final Grade
+        grades = ["D", "D", "D", "C", "B", "A", "S-", "S", "S+"]
+        return grades[max(0, min(8, int(score)))]
 
 # Find duos
 def find_duos(player_histories: list) -> set:
