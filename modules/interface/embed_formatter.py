@@ -184,8 +184,14 @@ def build_draft_embed(role: str, user_team: str, error_msg: str | None, top_pick
     if not top_picks:
         embed.add_field(name="⚠️ Standby", value="Waiting for more data to simulate...", inline=False)
     else:
-        for rank, (champ, prob) in enumerate(top_picks, 1):
-            embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
+        for rank, data in enumerate(top_picks, 1):
+            # Safe unpacking in case an older tuple is passed
+            if len(data) == 3:
+                champ, prob, reason = data
+                embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**\n💡 *{reason}*", inline=False)
+            else:
+                champ, prob = data
+                embed.add_field(name=f"#{rank} - {champ}", value=f"Predicted WR: **{prob * 100:.1f}%**", inline=False)
 
     embed.set_image(url="attachment://draft_board.png")
 

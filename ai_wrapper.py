@@ -197,56 +197,94 @@ class LeagueAI:
 
         return sorted_draft
 
-    # Rapidly simulates the current draft state against all valid champions for a target role,
-    def suggest_champion(self, target_role: str, user_team: str, blue_dict: dict, red_dict: dict, role_db: dict, banned_champs: list = None):
-        if banned_champs is None:
-            banned_champs = []
-
-        target_role = target_role.lower()
+    # Filters out invalid roles, picked champions, and banned champions
+    @staticmethod
+    def _get_valid_available_champions(target_role: str, role_db: dict, blue_dict: dict, red_dict: dict, banned_champs: list) -> list:
         champ_roles = LeagueAI.get_champ_roles(role_db)
 
-        # Filter the role database to get valid champions for the target role
-        valid_champions = [
+        # Convert lists to a Set for lightning-fast O(1) lookups
+        unavailable = set(blue_dict.values()) | set(red_dict.values()) | set(banned_champs)
+
+        return [
             champ for champ, roles in champ_roles.items()
-            if target_role in roles
+            if target_role in roles and champ not in unavailable
         ]
+
+    # Constructs the exact dictionary format expected by the ML Model from the current draft state
+    @staticmethod
+    def _build_draft_input(blue_dict: dict, red_dict: dict) -> dict:
+        return {
+            'blueTopChamp': blue_dict.get('top', 'Unknown'),
+            'blueJungleChamp': blue_dict.get('jungle', 'Unknown'),
+            'blueMiddleChamp': blue_dict.get('mid', 'Unknown'),
+            'blueADCChamp': blue_dict.get('adc', 'Unknown'),
+            'blueSupportChamp': blue_dict.get('support', 'Unknown'),
+            'redTopChamp': red_dict.get('top', 'Unknown'),
+            'redJungleChamp': red_dict.get('jungle', 'Unknown'),
+            'redMiddleChamp': red_dict.get('mid', 'Unknown'),
+            'redADCChamp': red_dict.get('adc', 'Unknown'),
+            'redSupportChamp': red_dict.get('support', 'Unknown')
+        }
+
+    # Calculates synergy and meta winrates to explain the decision.
+    def _determine_pick_reason(self, champ: str, allies: list) -> str:
+        best_syn_score = 0.0
+        best_ally = ""
+
+        # Check for high synergy with currently locked-in allies
+        for ally in allies:
+            pair = sorted([champ, ally])
+            pair_key = f"{pair[0]}-{pair[1]}"
+            if pair_key in self.synergy_matrix:
+                syn_score = self.synergy_matrix[pair_key]["winrate"] - config.BASE_WINRATE
+                if syn_score > best_syn_score:
+                    best_syn_score = syn_score
+                    best_ally = ally
+
+        if best_syn_score >= 0.015:
+            return f"High synergy with {best_ally}."
+
+        # Check if it's just a raw meta monster right now
+        meta_wr = self.meta_db.get(champ, config.BASE_WINRATE)
+        if meta_wr >= 0.515:
+            return f"Strong current meta pick ({meta_wr * 100:.1f}% WR)."
+
+        return "Solid balanced addition."
+
+    # The main function called by the draft coach command to get the top 3 champion suggestions for a given role and draft state.
+    # Rapidly simulates the current draft state against all valid champions for a target role.
+    def suggest_champion(self, target_role: str, user_team: str, blue_dict: dict, red_dict: dict, role_db: dict,
+                         banned_champs: list = None):
+        target_role = target_role.lower()
+        is_blue = (user_team.lower() == 'blue')
+
+        valid_champions = self._get_valid_available_champions(
+            target_role, role_db, blue_dict, red_dict, banned_champs or []
+        )
+
+        # Determine currently locked allies exactly once
+        allies = [c for c in (blue_dict.values() if is_blue else red_dict.values()) if c != "Unknown"]
         results = []
 
+        # Simulate
         for champ in valid_champions:
-            # Prevent suggesting a champion that is already picked
-            if champ in blue_dict.values() or champ in red_dict.values() or champ in banned_champs:
-                continue
+            test_blue, test_red = blue_dict.copy(), red_dict.copy()
 
-            test_blue = blue_dict.copy()
-            test_red = red_dict.copy()
-
-            # Inject the test champion directly into the target dictionary slot
-            if user_team.lower() == 'blue':
+            if is_blue:
                 test_blue[target_role] = champ
             else:
                 test_red[target_role] = champ
 
             try:
-                # Format exactly as the PyTorch model expects
-                draft_dict = {
-                    'blueTopChamp': test_blue.get('top', 'Unknown'),
-                    'blueJungleChamp': test_blue.get('jungle', 'Unknown'),
-                    'blueMiddleChamp': test_blue.get('mid', 'Unknown'),
-                    'blueADCChamp': test_blue.get('adc', 'Unknown'),
-                    'blueSupportChamp': test_blue.get('support', 'Unknown'),
-                    'redTopChamp': test_red.get('top', 'Unknown'),
-                    'redJungleChamp': test_red.get('jungle', 'Unknown'),
-                    'redMiddleChamp': test_red.get('mid', 'Unknown'),
-                    'redADCChamp': test_red.get('adc', 'Unknown'),
-                    'redSupportChamp': test_red.get('support', 'Unknown')
-                }
-
+                # 🔥 All the messy logic is perfectly delegated to helpers!
+                draft_dict = self._build_draft_input(test_blue, test_red)
                 prediction = self.predict_match(draft_dict)
-                win_prob = prediction[0] if user_team.lower() == 'blue' else prediction[1]
-                results.append((champ, win_prob))
+                win_prob = prediction[0] if is_blue else prediction[1]
+                reason = self._determine_pick_reason(champ, allies)
+
+                results.append((champ, win_prob, reason))
             except Exception as e:
                 logger.error(f"AI Coach Simulation failed for {champ}: {e}")
-                continue
 
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:3]
