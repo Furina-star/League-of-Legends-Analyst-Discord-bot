@@ -102,22 +102,22 @@ class DatabaseManager:
         async with aiosqlite.connect(self.db_path) as conn:
             async with conn.execute("""
                 SELECT discord_id, AVG(kp_percent) as val FROM game_logs 
-                WHERE timestamp > DATETIME('now', '-7 days') AND discord_id IS NOT NULL AND discord_id != 'None'
-                GROUP BY discord_id HAVING COUNT(match_id) >= 3 ORDER BY val ASC LIMIT 1
+                WHERE discord_id IS NOT NULL AND discord_id != 'None'
+                GROUP BY discord_id ORDER BY val ASC LIMIT 1
             """) as cursor:
                 backpack = await cursor.fetchone()
 
             async with conn.execute("""
                 SELECT discord_id, deaths as val FROM game_logs 
-                WHERE timestamp > DATETIME('now', '-7 days') AND discord_id IS NOT NULL AND discord_id != 'None'
+                WHERE discord_id IS NOT NULL AND discord_id != 'None'
                 ORDER BY val DESC LIMIT 1
             """) as cursor:
                 jester = await cursor.fetchone()
 
             async with conn.execute("""
                 SELECT discord_id, AVG(gold_per_min) as val FROM game_logs 
-                WHERE timestamp > DATETIME('now', '-7 days') AND discord_id IS NOT NULL AND discord_id != 'None'
-                GROUP BY discord_id HAVING COUNT(match_id) >= 3 ORDER BY val DESC LIMIT 1
+                WHERE discord_id IS NOT NULL AND discord_id != 'None'
+                GROUP BY discord_id ORDER BY val DESC LIMIT 1
             """) as cursor:
                 tax = await cursor.fetchone()
 

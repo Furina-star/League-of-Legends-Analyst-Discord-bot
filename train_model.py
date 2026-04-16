@@ -15,6 +15,7 @@ import config
 from ai_wrapper import Model, calculate_team_synergy
 
 # Get the logging system
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Load your CUSTOM Mined Data
