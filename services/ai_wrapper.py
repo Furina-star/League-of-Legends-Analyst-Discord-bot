@@ -9,6 +9,7 @@ import json
 from itertools import combinations
 import logging
 from typing import List, Tuple, Dict, Any
+from config import MODEL_PATH, ENCODER_PATH, SCALER_PATH
 import joblib
 import warnings
 
@@ -65,9 +66,9 @@ def calculate_team_synergy(team_champs: List[str], synergy_matrix: Dict[str, Any
 # Wrapper Class
 class LeagueAI:
     def __init__(self, bot_config: dict, synergy_matrix: dict, meta_db: dict,
-                 model_path: str = "models/Lol_draft_predictor.safetensors",
-                 encoder_path: str = "models/champion_encoder.json",
-                 scaler_path: str = "models/scaler.pkl"):
+                 model_path: str = MODEL_PATH,
+                 encoder_path: str = ENCODER_PATH,
+                 scaler_path: str = SCALER_PATH):
 
         self.config = bot_config
         self.ai_ready = False

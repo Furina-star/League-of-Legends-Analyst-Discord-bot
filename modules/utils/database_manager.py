@@ -5,7 +5,7 @@ By centralizing database operations in this class, we can ensure consistent data
 """
 from sqlite3 import Row
 from typing import Iterable
-
+import os
 import aiosqlite
 import logging
     
@@ -13,11 +13,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    def __init__(self, db_path="data/server_state.db"):
+    def __init__(self, db_path="data/live/server_state.db"):
         self.db_path = db_path
         self._db = None  # Persistent connection
 
     async def init_db(self):
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute("PRAGMA journal_mode=WAL")

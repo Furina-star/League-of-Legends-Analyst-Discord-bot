@@ -61,13 +61,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Models
 MODEL_PATH = os.path.join(BASE_DIR, 'data/models', 'Lol_draft_predictor.safetensors')
 ENCODER_PATH = os.path.join(BASE_DIR, 'data/models', 'champion_encoder.json')
+SCALER_PATH = os.path.join(BASE_DIR, 'data', 'models', 'scaler.pkl')
 
 # External Factor
-SYNERGY_PATH = os.path.join(BASE_DIR, 'data', 'Synergy_Matrix.json')
-META_PATH = os.path.join(BASE_DIR, 'data', 'Meta_Champions.json')
-ROLES_PATH = os.path.join(BASE_DIR, 'data', 'Champion_Roles.json')
+SYNERGY_PATH    = os.path.join(BASE_DIR, 'data', 'static', 'Synergy_Matrix.json')
+META_PATH       = os.path.join(BASE_DIR, 'data', 'static', 'Meta_Champions.json')
+ROLES_PATH      = os.path.join(BASE_DIR, 'data', 'static', 'Champion_Roles.json')
 
 # RIOT Data Caches
-CHAMP_DICT_PATH = os.path.join(BASE_DIR, 'data', 'champion_cache.json')
-KEYSTONE_RUNES_PATH = os.path.join(BASE_DIR, 'data', 'Keystone_Runes.json')
-ITEM_DICT_PATH = os.path.join(BASE_DIR, 'data', 'Item_Dictionary.json')
+CHAMP_DICT_PATH = os.path.join(BASE_DIR, 'data', 'training', 'champion_cache.json')
+KEYSTONE_RUNES_PATH = os.path.join(BASE_DIR, 'data', 'static', 'Keystone_Runes.json')
+ITEM_DICT_PATH  = os.path.join(BASE_DIR, 'data', 'static', 'Item_Dictionary.json')

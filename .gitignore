@@ -38,5 +38,6 @@ data/server_state.db-wal
 
 # ML and Data files
 # If its over 100mb yeah i can add it to gitignore
-data/convert_data/[OLD] convert_data.csv
+[OLD]convert_data.csv
+data/training/[OLD]convert_data.csv
 # models/*.pth

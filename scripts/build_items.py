@@ -8,7 +8,7 @@ import os
 
 # Explicit path casting
 SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
-FILE_PATH = str(os.path.join(SCRIPT_DIR, '../data', 'Item_Dictionary.json'))
+FILE_PATH = os.path.join(SCRIPT_DIR, '../data', 'static', 'Item_Dictionary.json')
 
 def update_item_dictionary():
     print("Fetching the latest League of Legends patch version...")

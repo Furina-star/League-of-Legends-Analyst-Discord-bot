@@ -12,10 +12,10 @@ import sqlite3
 from itertools import combinations
 
 SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = str(os.path.dirname(SCRIPT_DIR))
-CSV_PATH = os.path.join(DATA_DIR, "upgraded_drafts.csv")
-DB_PATH = os.path.join(DATA_DIR, "server_state.db")
-JSON_PATH = os.path.join(DATA_DIR, "Synergy_Matrix.json")
+DATA_DIR  = os.path.join(os.path.dirname(SCRIPT_DIR), "data")
+CSV_PATH  = os.path.join(DATA_DIR, "training", "upgraded_drafts.csv")
+DB_PATH   = os.path.join(DATA_DIR, "live", "server_state.db")
+JSON_PATH = os.path.join(DATA_DIR, "static", "Meta_Champions.json")
 
 def build_synergy_matrix():
     print(f"Loading hybrid data from {CSV_PATH} and {DB_PATH}...")

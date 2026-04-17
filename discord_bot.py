@@ -174,9 +174,9 @@ if __name__ == "__main__":
         sys.exit("Error: DISCORD_TOKEN and RIOT_API_KEY must be set in the .env file.")
 
     required_data_files = {
-        config.META_PATH: "data/convert_data/build_meta.py",
-        config.ROLES_PATH: "data/convert_data/update_roles.py",
-        config.SYNERGY_PATH: "data/convert_data/build_synergy_matrix.py",
+        config.META_PATH: "scripts/build_meta.py",
+        config.ROLES_PATH: "scripts/update_roles.py",
+        config.SYNERGY_PATH: "scripts/build_synergy_matrix.py",
     }
     for filepath, script in required_data_files.items():
         if not os.path.exists(filepath):

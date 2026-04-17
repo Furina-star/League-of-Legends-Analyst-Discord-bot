@@ -8,7 +8,7 @@ import os
 
 # Explicit path casting
 SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
-FILE_PATH = str(os.path.join(SCRIPT_DIR, '../data', 'Keystone_Runes.json'))
+FILE_PATH = os.path.join(SCRIPT_DIR, '../data', 'static', 'Keystone_Runes.json')
 
 def update_rune_dictionary():
     print("Fetching the latest League of Legends patch version...")

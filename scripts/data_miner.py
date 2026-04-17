@@ -24,7 +24,7 @@ PLATFORM = "euw1"
 TARGET_MATCHES = 50000
 
 SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
-CSV_FILENAME = str(os.path.join(SCRIPT_DIR, "../data", "upgraded_drafts.csv"))
+CSV_FILENAME = str(os.path.join(SCRIPT_DIR, "../data", "training", "upgraded_drafts.csv"))
 
 if os.path.exists(CSV_FILENAME):
     df = pd.read_csv(CSV_FILENAME, low_memory=False)

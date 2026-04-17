@@ -13,7 +13,7 @@ SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
 MODULES_DIR = str(os.path.dirname(SCRIPT_DIR))
 ROOT_DIR = str(os.path.dirname(MODULES_DIR))
 
-DEFAULT_DB_PATH = str(os.path.join(ROOT_DIR, "data", "riot_cache.db"))
+DEFAULT_DB_PATH = str(os.path.join(ROOT_DIR, "data", "live", "riot_cache.db"))
 
 class RiotCache:
     def __init__(self, db_path=DEFAULT_DB_PATH):
