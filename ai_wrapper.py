@@ -9,14 +9,16 @@ import json
 from itertools import combinations
 import logging
 from typing import List, Tuple, Dict, Any
+import joblib
 
 # Get the logging system
 logger = logging.getLogger(__name__)
 
 # Define the Model Architecture
 class Model(nn.Module):
+    # num_extra_features is now 32
     def __init__(self, num_champions, embedding_dim=16, num_champs_in_match=10,
-                 num_extra_features=12, dropout_rate=0.25):
+                 num_extra_features=32, dropout_rate=0.25):
         super().__init__()
         self.embedding = nn.Embedding(num_embeddings=num_champions, embedding_dim=embedding_dim)
 
@@ -27,25 +29,23 @@ class Model(nn.Module):
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
-
             nn.Linear(256, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
-
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
-
             nn.Linear(64, 1),
             nn.Sigmoid()
         )
 
-    def forward(self, x, synergy_scores, meta_rates):
+    def forward(self, x, synergy_scores, meta_rates, masteries, ranks):
         embedded = self.embedding(x)
         flattened = embedded.view(x.size(0), -1)
-        combined = torch.cat((flattened, synergy_scores, meta_rates), dim=1)
+        # Concatenate all 5 features
+        combined = torch.cat((flattened, synergy_scores, meta_rates, masteries, ranks), dim=1)
         return self.net(combined)
 
 def calculate_team_synergy(team_champs: List[str], synergy_matrix: Dict[str, Any], base_winrate: float) -> float:
@@ -69,6 +69,7 @@ class LeagueAI:
                  meta_path: str = "data/Meta_Champions.json"):
 
         logger.info("Loading AI parameters...")
+        self.scaler = joblib.load("models/scaler.pkl")
         self.config = bot_config
         self.ai_ready = False
 
@@ -118,102 +119,71 @@ class LeagueAI:
         red_synergy = calculate_team_synergy(red_champs, self.synergy_matrix, self.config['BASE_WINRATE'])
 
         meta_list = [self.meta_db.get(champ, self.config['BASE_WINRATE']) for champ in raw_champs]
+        mastery_list = [draft_dict.get(f'mastery_{i}', 0) for i in range(10)]
+        rank_list = [draft_dict.get(f'rank_{i}', 3) for i in range(10)]
 
         # Convert everything to tensors
+        scaled_stats = self.scaler.transform([mastery_list + rank_list])[0]
+        scaled_masteries = scaled_stats[:10].tolist()
+        scaled_ranks = scaled_stats[10:].tolist()
+
         x_tensor = torch.tensor([encoded_list], dtype=torch.long)
         synergy_tensor = torch.tensor([[blue_synergy, red_synergy]], dtype=torch.float32)
         meta_tensor = torch.tensor([meta_list], dtype=torch.float32)
+        mastery_tensor = torch.tensor([scaled_masteries], dtype=torch.float32)
+        rank_tensor = torch.tensor([scaled_ranks], dtype=torch.float32)
 
         with torch.no_grad():
-            prediction = self.model(x_tensor, synergy_tensor, meta_tensor).item()
+            prediction = self.model(x_tensor, synergy_tensor, meta_tensor, mastery_tensor, rank_tensor).item()
 
         return prediction, 1.0 - prediction, blue_synergy, red_synergy
 
     # This function batch 50 drafts and send it through the model exactly once
-    def predict_batch(self, drafts_list: List[Dict[str, str]]) -> List[Tuple[float, float, float, float]]:
-        all_encoded = []
-        all_synergies = []
-        all_metas = []
+    def predict_batch(self, draft_batch: List[Dict[str, Any]]) -> List[Tuple[float, float]]:
+        if not self.ai_ready or not draft_batch:
+            return [(0.5, 0.5) for _ in draft_batch]
 
-        correct_order = [
-            'blueTopChamp', 'blueJungleChamp', 'blueMiddleChamp', 'blueADCChamp', 'blueSupportChamp',
-            'redTopChamp', 'redJungleChamp', 'redMiddleChamp', 'redADCChamp', 'redSupportChamp'
-        ]
+        x_list, synergy_list, meta_list, mastery_list, rank_list = [], [], [], [], []
 
-        # Loop to gather data, NOT to run PyTorch
-        for draft_dict in drafts_list:
-            raw_champs = [draft_dict.get(col, 'Unknown') for col in correct_order]
+        for draft in draft_batch:
+            # Champions
+            encoded = []
+            for i in range(10):
+                champ_name = draft.get(f'champ_{i}', 'Unknown')
+                encoded.append(self.champion_mapping.get(champ_name, self.champion_mapping.get('Unknown', 0)))
+            x_list.append(encoded)
 
-            # Use the JSON dictionary we made earlier
-            encoded_list = [self.champ_encoder.get(champ, 0) for champ in raw_champs]
+            # Synergy
+            synergy_list.append([draft.get('blue_synergy', 0.5), draft.get('red_synergy', 0.5)])
 
-            blue_champs = raw_champs[:5]
-            red_champs = raw_champs[5:]
+            # Meta Rates
+            meta_list.append([draft.get(f'meta_{i}', 0.5) for i in range(10)])
 
-            # Use the injected config we made earlier
-            blue_synergy = calculate_team_synergy(blue_champs, self.synergy_matrix, self.config['BASE_WINRATE'])
-            red_synergy = calculate_team_synergy(red_champs, self.synergy_matrix, self.config['BASE_WINRATE'])
+            # Masteries & Ranks (Default to 0 mastery, Gold/3 rank)
+            m_row = [draft.get(f'mastery_{i}', 0) for i in range(10)]
+            r_row = [draft.get(f'rank_{i}', 3) for i in range(10)]
 
-            meta_list = [self.meta_db.get(champ, self.config['BASE_WINRATE']) for champ in raw_champs]
+            # Normalize the massive numbers just like in predict_match
+            scaled_stats = self.scaler.transform([m_row + r_row])[0]
+            mastery_list.append(scaled_stats[:10].tolist())
+            rank_list.append(scaled_stats[10:].tolist())
 
-            all_encoded.append(encoded_list)
-            all_synergies.append([blue_synergy, red_synergy])
-            all_metas.append(meta_list)
+        # Convert everything to PyTorch Tensors
+        x_tensor = torch.tensor(x_list, dtype=torch.long)
+        syn_tensor = torch.tensor(synergy_list, dtype=torch.float32)
+        meta_tensor = torch.tensor(meta_list, dtype=torch.float32)
+        mas_tensor = torch.tensor(mastery_list, dtype=torch.float32)
+        rnk_tensor = torch.tensor(rank_list, dtype=torch.float32)
 
-        if not drafts_list:
-            return []
-
-        # Convert everything into 3 giant tensors
-        x_tensor = torch.tensor(all_encoded, dtype=torch.long)
-        synergy_tensor = torch.tensor(all_synergies, dtype=torch.float32)
-        meta_tensor = torch.tensor(all_metas, dtype=torch.float32)
-
-        # Run the model exactly once
         with torch.no_grad():
-            predictions = self.model(x_tensor, synergy_tensor, meta_tensor).squeeze(-1).tolist()
+            predictions = self.model(x_tensor, syn_tensor, meta_tensor, mas_tensor, rnk_tensor).squeeze().tolist()
 
-        # Failsafe if the batch only had 1 item and PyTorch stripped the list
+        # single-item batches return a float, multi-item batches return a list
         if isinstance(predictions, float):
             predictions = [predictions]
 
-        # Package the results
-        results = []
-        for i in range(len(predictions)):
-            pred = predictions[i]
-            blue_syn = all_synergies[i][0]
-            red_syn = all_synergies[i][1]
-            results.append((pred, 1.0 - pred, blue_syn, red_syn))
-
-        return results
-
-    # This function calculates the winrates
-    def apply_hybrid_algorithm(self, base_blue_prob: float, blue_winrates: List[float],
-                               red_winrates: List[float], blue_masteries: List[int],
-                               red_masteries: List[int]) -> Tuple[float, float]:
-
-        avg_blue = sum(blue_winrates) / len(blue_winrates) if blue_winrates else 50.0
-        avg_red = sum(red_winrates) / len(red_winrates) if red_winrates else 50.0
-
-        skill_modifier = ((avg_blue - avg_red) * 0.5) / 100.0
-
-        def calculate_mastery_modifier(masteries: List[int]) -> float:
-            team_mod = 0.0
-            for points in masteries:
-                if points < self.config['FIRST_TIME_THRESHOLD']:
-                    team_mod -= self.config['FIRST_TIME_PENALTY']
-                elif points > self.config['OTP_THRESHOLD']:
-                    extra_points = min(points, self.config['OTP_MAX_CAP']) - self.config['OTP_THRESHOLD']
-                    team_mod += (extra_points / 100000) * self.config['OTP_BUFF_MULTIPLIER']
-            return team_mod
-
-        blue_x_factor = calculate_mastery_modifier(blue_masteries)
-        red_x_factor = calculate_mastery_modifier(red_masteries)
-
-        final_blue_prob = base_blue_prob + skill_modifier + blue_x_factor - red_x_factor
-        final_blue_prob = max(0.01, min(0.99, final_blue_prob))
-
-        return final_blue_prob, 1.0 - final_blue_prob
-
+        return [(p, 1.0 - p) for p in predictions]
+    
     # Sorts a list of champion names into standard [Top, Jgl, Mid, ADC, Sup] order
     @staticmethod
     def sort_draft_strings(draft_list: list, role_db: dict) -> list:

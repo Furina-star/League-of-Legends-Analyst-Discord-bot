@@ -26,7 +26,8 @@ class StatsCommands(commands.Cog):
     # Getting the last game or post match review command
     # Identify what the player did after the game.
     @app_commands.command(name="postgame", description="Furina ruthlessly analyzes your most recent match.")
-    @app_commands.describe(server="The server region (e.g., NA1, EUW1, KR)", full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)")
+    @app_commands.describe(server="The server region (e.g., NA1, EUW1, KR)",
+                           full_riot_id="The player's Riot ID (e.g., Doublelift#NA1)")
     @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     @app_commands.autocomplete(server=server_autocomplete)
     async def postgame(self, interaction: discord.Interaction, server: str, full_riot_id: str):
@@ -41,7 +42,8 @@ class StatsCommands(commands.Cog):
         # This call out the Riot ID parser
         game_name, tag_line = parse_riot_id(full_riot_id)
         if not game_name or not tag_line:
-            await interaction.response.send_message("⚠️ Format Error! You must include the hashtag. Example: `Doublelift#NA1`", ephemeral=True)
+            await interaction.response.send_message(
+                "⚠️ Format Error! You must include the hashtag. Example: `Doublelift#NA1`", ephemeral=True)
             return
 
         # Tell Discord to show the "Thinking..." status.
@@ -51,7 +53,7 @@ class StatsCommands(commands.Cog):
         puuid = await self.riot.get_puuid(game_name, tag_line, server_context=server)
         if not puuid:
             await interaction.followup.send(
-                "⚠️ Could not find player. Check spelling!",allowed_mentions=discord.AllowedMentions.none())
+                "⚠️ Could not find player. Check spelling!", allowed_mentions=discord.AllowedMentions.none())
             return
 
         # Get the most recent match ID
@@ -99,6 +101,9 @@ class StatsCommands(commands.Cog):
                     )
         except Exception as e:
             logger.error(f"Hall of Shame DB Error: {e}")
+
+        # Silently drop the match into the passive mining queue
+        await self.bot.db.insert_ml_queue(history[0], server)
 
         # Build the embed and send the Roast/Praise embed
         embed = build_lastgame_embed(server, full_riot_id, player_stats, self.bot.patch_version)

@@ -8,6 +8,8 @@ It also has a memory cache to avoid spamming the same match multiple times.
 import discord
 from discord.ext import commands, tasks
 import logging
+import asyncio
+import json
 from modules.interface.embed_formatter import build_predict_embed
 from modules.interface.canvas_engine import render_draft_board
 from modules.utils.parsers import extract_live_player_names
@@ -15,15 +17,20 @@ from modules.utils.parsers import extract_live_player_names
 # Get the logger system
 logger = logging.getLogger(__name__)
 
+RANK_WEIGHTS = {"IRON": 1, "BRONZE": 2, "SILVER": 3, "GOLD": 4, "PLATINUM": 5, "EMERALD": 6, "DIAMOND": 7, "MASTER": 8, "GRANDMASTER": 9, "CHALLENGER": 10}
+RANK_CACHE = {}
+
 # This class handles the live tracker
 class LiveTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.tracked_matches = set()  # Memory cache so it don't spam the same game twice
         self.match_check_loop.start()
+        self.passive_miner_loop.start()
 
     def cog_unload(self):
         self.match_check_loop.cancel()
+        self.passive_miner_loop.cancel()
 
     # Admin-only command to instantly configure the server
     @discord.app_commands.command(name="setup_broadcast", description="[ADMIN] Creates the #live-matches channel for automated predictions.")
@@ -138,6 +145,62 @@ class LiveTracker(commands.Cog):
 
         # Housekeeping: Remove old matches from memory so it doesn't inflate forever
         self.tracked_matches.intersection_update(current_live_matches)
+
+    @tasks.loop(seconds=25)
+    async def passive_miner_loop(self):
+        await self.bot.wait_until_ready()
+
+        pending_match = await self.bot.db.get_one_queued_match()
+        if not pending_match:
+            return
+
+        match_id, server = pending_match
+
+        try:
+            match_data = await self.bot.riot_client.get_match_details(match_id, server_context=server)
+            participants = match_data.get('info', {}).get('participants', [])
+
+            if len(participants) != 10:
+                await self.bot.db.remove_from_queue(match_id)
+                return
+
+            blue_win = 1 if participants[0].get('win', False) else 0
+            payload = {}
+            roles = ['Top', 'Jungle', 'Mid', 'ADC', 'Support']
+
+            # Extract data safely to prevent crashing Discord
+            for i, p in enumerate(participants):
+                team_prefix = 'blue' if i < 5 else 'red'
+                role = roles[i % 5]
+                puuid = p['puuid']
+                champ_id = p['championId']
+
+                payload[f'{team_prefix}{role}'] = champ_id
+
+                # Fetch Mastery
+                mastery = await self.bot.riot_client.get_champion_mastery(puuid, champ_id, platform_override=server)
+                payload[f'{team_prefix}{role}Mastery'] = mastery
+
+                # Fetch Rank using memory cache
+                if puuid in RANK_CACHE:
+                    rank_val = RANK_CACHE[puuid]
+                else:
+                    rank_str = await self.bot.riot_client.get_summoner_rank(puuid, platform_override=server)
+                    rank_val = RANK_WEIGHTS.get(rank_str.upper().split()[0], 3) if rank_str else 3
+                    RANK_CACHE[puuid] = rank_val
+
+                payload[f'{team_prefix}{role}Rank'] = rank_val
+                await asyncio.sleep(0.1) # Micro-pause
+
+            # Save finalized AI data and pop from queue
+            await self.bot.db.save_ml_data(match_id, blue_win, json.dumps(payload))
+            await self.bot.db.remove_from_queue(match_id)
+
+        except Exception as e:
+            if "429" in str(e):
+                pass # Rate limit: leave in queue, it will try again next loop
+            else:
+                await self.bot.db.remove_from_queue(match_id) # Bad match data, trash it
 
 async def setup(bot):
     await bot.add_cog(LiveTracker(bot))
