@@ -147,10 +147,15 @@ class DiscordBot(commands.Bot):
             # If Discord's servers are dying, just ignore it.
             pass
 
+    # Safely close API Connection and the database
     async def close(self):
         if hasattr(self, 'riot_client'):
             await self.riot_client.close()
             logger.info("Riot API connection closed safely.")
+
+        if hasattr(self, 'db'):
+            await self.db.close()
+
         await super().close()
 
 if __name__ == "__main__":

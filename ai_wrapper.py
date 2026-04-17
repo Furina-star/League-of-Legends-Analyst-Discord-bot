@@ -135,6 +135,14 @@ class LeagueAI:
 
         return prediction, 1.0 - prediction, blue_synergy, red_synergy
 
+    # Bridge for the /predict command to use the updated ML logic
+    def apply_hybrid_algorithm(self, draft_dict: Dict[str, Any]) -> Tuple[float, float, float, float]:
+        return self.predict_match(draft_dict)
+
+    # Bridge for the Live Tracker to use the updated ML logic
+    def predict_live_match(self, draft_dict: Dict[str, Any]) -> Tuple[float, float, float, float]:
+        return self.predict_match(draft_dict)
+
     # This function batch 50 drafts and send it through the model exactly once
     def predict_batch(self, draft_batch: List[Dict[str, Any]]) -> List[Tuple[float, float]]:
         if not self.ai_ready or not draft_batch:

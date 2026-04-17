@@ -141,7 +141,8 @@ def find_duos(player_histories: list) -> set:
 
 # this is to prevent the user from formatting it wrong, for example they might type "Hide on bush KR1" instead of "Hide on bush#KR1".
 def parse_riot_id(full_riot_id: str):
-    if len(full_riot_id):  # 16 (name) + 1 (#) + 5 (tag)
+    full_riot_id = full_riot_id.strip()
+    if len(full_riot_id) > 22:  # 16 (name) + 1 (#) + 5 (tag)
         return None, None
 
     if '#' in full_riot_id:
