@@ -101,7 +101,7 @@ def generate_dynamic_roles() -> None:
             with open(JSON_PATH, "r", encoding="utf-8") as f:
                 existing_db = json.load(f)
         except json.JSONDecodeError:
-            print("⚠️ Corrupted JSON found, starting fresh macro categories.")
+            print("Corrupted JSON found, starting fresh macro categories.")
 
     # Instantly extract the champions that meet the thresholds
     new_db = {

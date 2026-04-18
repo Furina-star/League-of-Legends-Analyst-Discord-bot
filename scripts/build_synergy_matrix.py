@@ -25,7 +25,7 @@ def _load_csv_data(csv_path: str) -> pd.DataFrame:
             raise TypeError("Expected a DataFrame from read_csv, got TextFileReader instead.")
         return df_csv
     except FileNotFoundError:
-        print(f"⚠️ No CSV found at {csv_path}. Starting with empty DataFrame.")
+        print(f"No CSV found at {csv_path}. Starting with empty DataFrame.")
         return pd.DataFrame()
 
 # Load the database
@@ -46,7 +46,7 @@ def _load_db_data(db_path: str) -> pd.DataFrame:
                 except json.JSONDecodeError:
                     continue
         except sqlite3.Error as e:
-            print(f"⚠️ Failed to read database: {e}")
+            print(f"Failed to read database: {e}")
 
     return pd.DataFrame(db_data) if db_data else pd.DataFrame()
 
@@ -124,7 +124,7 @@ def build_synergy_matrix() -> None:
     with open(JSON_PATH, "w", encoding='utf-8') as f:
         json.dump(final_matrix, f, indent=4)
 
-    print(f"✅ Synergy Matrix built successfully! Saved {len(final_matrix)} unique champion duos.")
+    print(f"Synergy Matrix built successfully! Saved {len(final_matrix)} unique champion duos.")
 
 if __name__ == "__main__":
     build_synergy_matrix()

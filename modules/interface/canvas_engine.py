@@ -9,7 +9,11 @@ import io
 import asyncio
 import aiohttp
 import aiofiles
+import logging
 from PIL import Image, ImageDraw, ImageFont
+
+# Get the logger system
+logger = logging.getLogger(__name__)
 
 # Dynamically lock the absolute path regardless of execution point
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -71,7 +75,8 @@ def _get_background(bg_filename: str = "background.jpg") -> Image.Image:
             overlay = Image.new("RGBA", (800, 660), (0, 0, 0, 40))
             _ASSET_CACHE[cache_key] = Image.alpha_composite(background, overlay)
         else:
-            logging.warning(f"⚠️ CRITICAL: Could not find background at {bg_path}")
+            # Print a critical error
+            logger.critical(f"Missing background image at {bg_path}! Falling back to solid color.")
             _ASSET_CACHE[cache_key] = Image.new("RGBA", (800, 660), BG_COLOR)
 
     return _ASSET_CACHE[cache_key].copy()

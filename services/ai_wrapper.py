@@ -146,10 +146,11 @@ class LeagueAI:
 
         # Default fallback if Riot API failed to pull stats
         if not blue_winrates or not red_winrates:
+            logger.warning("Riot API failed to fetch live stats. Defaulting to pure ML base prediction.")
             return base_blue_prob, 1.0 - base_blue_prob
 
         # Calculate average winrates. If they are in 0-100 format, normalize to 0.0-1.0
-        avg_blue_wr = sum(blue_winrates) / len(blue_winrates)
+        avg_blue_wr = float(sum(blue_winrates) / len(blue_winrates))
         if avg_blue_wr > 1.0: avg_blue_wr /= 100.0
 
         avg_red_wr = sum(red_winrates) / len(red_winrates)

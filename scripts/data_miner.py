@@ -22,6 +22,7 @@ if not RIOT_KEY:
 REGION = "europe"
 PLATFORM = "euw1"
 TARGET_MATCHES = 50000
+RATE_LIMIT_DELAY = 1.25
 
 SCRIPT_DIR = str(os.path.dirname(os.path.abspath(__file__)))
 CSV_FILENAME = str(os.path.join(SCRIPT_DIR, "../data", "training", "upgraded_drafts.csv"))
@@ -75,9 +76,11 @@ async def _rebuild_queue(client, seed_puuid):
 
     try:
         seed_history = await client.get_match_history(seed_puuid, count=1)
+        await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
+
         if seed_history:
             jumpstart_match = await client.get_match_details(seed_history[0])
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
 
             if jumpstart_match and 'info' in jumpstart_match:
                 for p in jumpstart_match['info']['participants']:
@@ -135,17 +138,20 @@ def _parse_rank_string(rank_str: str) -> float:
     return 3.0
 
 async def _fetch_player_stats(client, player_data):
+    # Mastery Call
     try:
         mastery = await client.get_champion_mastery(player_data['puuid'], player_data['championId'])
-    # Specifically catch network errors, timeouts, or malformed JSON dictionaries
     except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, TypeError):
         mastery = 0.0
+    await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
 
+    # Rank Call
     try:
         rank_str = await client.get_summoner_rank(player_data['puuid'])
         rank_val = _parse_rank_string(rank_str)
     except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, TypeError, ValueError):
         rank_val = 3.0
+    await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
 
     return float(mastery), float(rank_val)
 
@@ -178,23 +184,11 @@ async def _save_if_new(match_id, participants, visited_matches, matches_collecte
         return matches_collected
 
     draft, blue_win = parsed
-
     stats = {"blue": {}, "red": {}}
-    tasks = []
-    keys = []
 
     for team in ["blue", "red"]:
         for role in ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"]:
-            tasks.append(_fetch_player_stats(client, draft[team][role]))
-            keys.append((team, role))
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    for (team, role), res in zip(keys, results):
-        if isinstance(res, Exception):
-            stats[team][role] = {"mastery": 0.0, "rank": 3.0}
-        else:
-            mastery, rank = res
+            mastery, rank = await _fetch_player_stats(client, draft[team][role])
             stats[team][role] = {"mastery": mastery, "rank": rank}
 
     await _append_row(match_id, draft, blue_win, stats)
@@ -205,7 +199,7 @@ async def _save_if_new(match_id, participants, visited_matches, matches_collecte
 async def _process_single_match(client, match_id, visited_matches, puuid_queue, seen_puuids, matches_collected):
     try:
         match_data = await client.get_match_details(match_id)
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
 
         if not match_data or 'info' not in match_data:
             return matches_collected
@@ -245,8 +239,12 @@ async def _replenish_queue_if_empty(client, puuid_queue, seen_puuids):
     print("🕸️ Spider hit a dead end. Fetching Challenger Ladder to jumpstart...")
     try:
         ladder = await client.get_challenger_ladder(queue="RANKED_SOLO_5x5")
+        await asyncio.sleep(RATE_LIMIT_DELAY)
+
         for entry in ladder[:50]:
             pid = await client.get_puuid_by_summoner_id(entry['summonerId'])
+            await asyncio.sleep(RATE_LIMIT_DELAY)
+
             if pid and pid not in seen_puuids:
                 puuid_queue.append(pid)
                 seen_puuids.add(pid)
@@ -270,7 +268,9 @@ async def _initialize_miner_state():
 
 async def _initialize_spider_queue(client, seed_game_name, seed_tag_line, matches_collected):
     print(f"🌱 Planting seed: {seed_game_name}#{seed_tag_line}")
+    # Strictly named seed_puuid
     seed_puuid = await client.get_puuid(seed_game_name, seed_tag_line)
+    await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
 
     if matches_collected > 0 and seed_puuid:
         return await _rebuild_queue(client, seed_puuid)
@@ -291,11 +291,14 @@ async def _run_spider_loop(client, puuid_queue, seen_puuids, visited_matches, ma
                 print("🧹 Memory limit reached. Flushing PUUID tracking cache...")
                 seen_puuids.clear()
 
+            # Strictly named current_puuid
             current_puuid = puuid_queue.popleft()
             print(f"\n🔍 Scanning new player... (Queue size: {len(puuid_queue)})")
 
             try:
+                # Safely passing current_puuid to the API
                 match_history = await client.get_match_history(current_puuid, count=20)
+                await asyncio.sleep(RATE_LIMIT_DELAY) # PACING
             except Exception as e:
                 print(f"⚠️ Failed to fetch history for player. Error: {e}")
                 continue
@@ -342,7 +345,7 @@ async def mine_data(seed_game_name, seed_tag_line):
 
 if __name__ == "__main__":
     try:
-        asyncio.run(mine_data("Agurin", "DND"))
+        asyncio.run(mine_data("NattyNatt", "2005"))
     except KeyboardInterrupt:
         print("\n🛑 Execution Interrupted by User (Ctrl+C). Terminated Safely.")
         sys.exit(0)

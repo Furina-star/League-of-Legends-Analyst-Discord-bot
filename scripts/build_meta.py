@@ -23,7 +23,7 @@ def build_meta_database() -> None:
         if not isinstance(df_csv, pd.DataFrame):
             raise TypeError("Expected a DataFrame from read_csv, got TextFileReader instead.")
     except FileNotFoundError:
-        print(f"⚠️ No CSV found at {CSV_PATH}. Starting with empty DataFrame.")
+        print(f"No CSV found at {CSV_PATH}. Starting with empty DataFrame.")
         df_csv = pd.DataFrame()
 
     db_data = []
@@ -43,7 +43,7 @@ def build_meta_database() -> None:
                         continue
 
             except sqlite3.Error as e:
-                print(f"⚠️ Failed to read database: {e}")
+                print(f"Failed to read database: {e}")
 
     df_db = pd.DataFrame(db_data) if db_data else pd.DataFrame()
 
@@ -91,7 +91,7 @@ def build_meta_database() -> None:
     with open(JSON_PATH, "w", encoding='utf-8') as f:
         json.dump(final_meta, f, indent=4)
 
-    print(f"✅ Meta generation complete! Saved {len(final_meta)} champions to {JSON_PATH}")
+    print(f"Meta generation complete! Saved {len(final_meta)} champions to {JSON_PATH}")
 
 if __name__ == "__main__":
     build_meta_database()
