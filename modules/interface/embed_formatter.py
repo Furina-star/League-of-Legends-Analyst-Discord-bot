@@ -18,34 +18,34 @@ logger = logging.getLogger(__name__)
 
 # The embed formatter sections
 # For help commands in cogs
-def build_help_embed() -> discord.Embed:
+def build_help_embed(page: int = 0) -> discord.Embed:
     embed = discord.Embed(
         title="💧 Furina League Analyst Bot - Help Menu",
-        description="I am Furina, your personal Solo Queue analyst! I now use **Slash Commands**:\n"
-                    "Just type `/` and select my commands from the menu!",
         color=discord.Color.blue()
     )
-    # System Command
-    embed.add_field(name="🏓 `/ping`",value="Checks my current latency to Discord.",inline=False)
 
-    # The Court and Hall of Shame
-    embed.add_field(name="🔗 `/link`", value="Link your Riot ID to the Oratrice for Hall of Shame tracking.\n**Requires:** Server and Riot ID", inline=False)
-    embed.add_field(name="✂️ `/unlink`", value="Sever your ties and Furina will wipe your records clean.", inline=False)
-    embed.add_field(name="🏛️ `/hallofshame`", value="View the server's most tragic League of Legends performers this week.", inline=False)
-    embed.add_field(name="⚖️ `/trial`", value="Judge who truly threw the game and deliver a final verdict.", inline=False)
-    embed.add_field(name="🗣 `/confess`", value="Admit your horrific misplays and beg the Oratrice for mercy.", inline=False)
+    if page == 0:
+        embed.description = "I am Furina, your personal Solo Queue analyst!\n\n**Page 1/4: Live Match & Drafting**\nCommands to help you during champion select and live games."
+        embed.add_field(name="🔮 `/predict`", value="Calculates win probability for a live match.", inline=False)
+        embed.add_field(name="🕵️ `/scout`", value="Builds an enemy dossier for a live match.", inline=False)
 
-    # Game Analysis
-    embed.add_field(name="⚔️ `/predict`",value="Calculates win probability for a live match.\n**Requires:** Server and Riot ID",inline=False)
-    embed.add_field(name="🕵️ `/scout`",value="Builds an enemy dossier for a live match.\n**Requires:** Server and Riot ID", inline=False)
-    embed.add_field(name="🏆 `/postgame`",value="Ruthlessly analyzes your most recent match, including lane rival diff and performance grades.\n**Requires:** Server and Riot ID",inline=False)
-    embed.add_field(name="🧠 `/coach`", value="Simulates optimal champion picks for your specific role and team side during the draft phase.", inline=False)
+    elif page == 1:
+        embed.description = "I am Furina, your personal Solo Queue analyst!\n\n**Page 2/4: Post-Game & Stats**\nCommands to review matches and track performance."
+        embed.add_field(name="📊 `/postgame`", value="Retrieves a detailed summary of your last match.", inline=False)
+        embed.add_field(name="📉 `/hallofshame`", value="Displays the leaderboard of worst performing players.",
+                        inline=False)
 
-    # Live Match
-    embed.add_field(name="👑 Admin Configuration", value="**`/setup_broadcast`** — Automatically builds the `#live-matches` infrastructure so the Oratrice can track and announce linked players entering live games.", inline=False)
+    elif page == 2:
+        embed.description = "I am Furina, your personal Solo Queue analyst!\n\n**Page 3/4: The Oratrice's Judgement**\nPersona commands for Furina's dramatic flair."
+        embed.add_field(name="⚖️ `/trial`", value="Submit your recent League performance to the Oratrice for judgment.",
+                        inline=False)
+        embed.add_field(name="🙏 `/confess`", value="Confess your League of Legends sins to the Oratrice.", inline=False)
 
-    # Footer
-    embed.set_footer(text="Valid servers: NA1, EUW1, EUN1, KR, SG2, TW2, VN2, TH2, PH2, BR1, LAN1, LAS1, OC1, TR1, RU")
+    elif page == 3:
+        embed.description = "I am Furina, your personal Solo Queue analyst!\n\n**Page 4/4: Utilities & Setup**\nAccount linking and bot management."
+        embed.add_field(name="🔗 `/link`", value="Links your Riot ID to your Discord account.", inline=False)
+        embed.add_field(name="✂️ `/unlink`", value="Unlinks your Riot ID from your Discord account.", inline=False)
+        embed.add_field(name="🏓 `/ping`", value="Checks my current latency to Discord.", inline=False)
 
     return embed
 

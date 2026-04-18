@@ -16,8 +16,7 @@ from modules.utils.parsers import parse_riot_id, sort_team_roles, extract_live_p
 from modules.interface.discord_helpers import server_autocomplete
 from modules.interface.canvas_engine import render_draft_board
 from discord.app_commands import locale_str as _
-from modules.utils.constants import CMD_PREDICT, DESC_PREDICT, CMD_SCOUT, DESC_SCOUT, ARG_REGION, ARG_RIOT_ID, \
-    CMD_COACH, DESC_COACH
+from modules.utils.constants import CMD_PREDICT, DESC_PREDICT, CMD_SCOUT, DESC_SCOUT, ARG_REGION, ARG_RIOT_ID, CMD_COACH, DESC_COACH
 
 # Get the logging system
 logger = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ class DraftCommands(commands.Cog):
     # Getting the Live game command.
     # Predict the win condition before the game starts
     @app_commands.command(name=_(CMD_PREDICT), description=_(DESC_PREDICT))
-    @app_commands.describe(region=_(ARG_REGION), riot_id=_(ARG_RIOT_ID))
+    @app_commands.describe(server=_(ARG_REGION), full_riot_id=_(ARG_RIOT_ID))
     @app_commands.checks.cooldown(1, 5, key=lambda i: i.user.id)
     @app_commands.checks.cooldown(2, 5, key=lambda i: None)
     @app_commands.autocomplete(server=server_autocomplete)
@@ -139,7 +138,7 @@ class DraftCommands(commands.Cog):
     # Getting the enemy information.
     # This part checks what type of bs the enemy team is running
     @app_commands.command(name=_(CMD_SCOUT), description=_(DESC_SCOUT))
-    @app_commands.describe(region=_(ARG_REGION), riot_id=_(ARG_RIOT_ID))
+    @app_commands.describe(server=_(ARG_REGION), full_riot_id=_(ARG_RIOT_ID))
     @app_commands.checks.cooldown(1, 5, key=lambda i: i.user.id)
     @app_commands.checks.cooldown(2, 5, key=lambda i: None)
     @app_commands.autocomplete(server=server_autocomplete)

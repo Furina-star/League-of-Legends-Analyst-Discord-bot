@@ -6,6 +6,7 @@ import discord
 from modules.interface.embed_formatter import build_lastgame_embed, build_draft_embed
 from modules.utils.parsers import extract_postgame_stats, quick_resolve_champion
 from modules.interface.canvas_engine import render_draft_board
+from modules.interface.embed_formatter import build_help_embed
 
 # This class handles the button for '/postgame'
 class MatchCycleView(discord.ui.View):
@@ -297,3 +298,28 @@ class BanInputModal(discord.ui.Modal):
         self.dashboard.error_msg = None
         await self.dashboard.update_dashboard(interaction)
         return None
+
+# This class handles the pagination buttons for the help command, allowing users to cycle through different categories of commands.
+class HelpPaginationView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120) # View times out after 2 minutes
+        self.current_page = 0
+        self.max_pages = 4 # Total number of categories
+
+    async def update_buttons(self, interaction: discord.Interaction):
+        # Fetch the new embed for the updated page
+        embed = build_help_embed(self.current_page)
+        # Edit the original message with the new embed
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.blurple, custom_id="prev_help")
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Cycle backwards (loops to the last page if at the beginning)
+        self.current_page = (self.current_page - 1) % self.max_pages
+        await self.update_buttons(interaction)
+
+    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.blurple, custom_id="next_help")
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Cycle forwards (loops to the first page if at the end)
+        self.current_page = (self.current_page + 1) % self.max_pages
+        await self.update_buttons(interaction)

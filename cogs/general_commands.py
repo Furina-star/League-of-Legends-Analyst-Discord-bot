@@ -13,6 +13,7 @@ from discord.ext import commands
 from discord import app_commands
 from modules.interface.embed_formatter import build_help_embed
 from modules.interface.discord_helpers import server_autocomplete
+from modules.interface.views import HelpPaginationView
 from modules.persona.verdicts import GUILTY_TEMPLATES, PLOT_TWIST_TEMPLATES, MERCY_TEMPLATES, SENTENCE_TEMPLATES
 from modules.utils.state_resolvers import resolve_link_state
 from discord.app_commands import locale_str as _
@@ -53,16 +54,24 @@ class GeneralCommands(commands.Cog):
         await interaction.response.send_message(f"I'm online and ready to analyze! **Latency: {latency}ms**.")
 
     # The help command
+    # Utilizes a page cycle system with buttons, and a single embed that gets edited with new content on each page turn.
     @app_commands.command(name=_(CMD_HELP), description=_(DESC_HELP))
+    @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     async def help_command(self, interaction: discord.Interaction):
-        embed = build_help_embed()
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # Initialize the view and the first page of the embed
+        view = HelpPaginationView()
+        embed = build_help_embed(page=0)
+
+        # Send the interactive menu
+        await interaction.response.send_message(embed=embed, view=view)
 
     # The Trial command
     # What does it do? put the victim in trial and let furina judge for fun.
     @app_commands.command(name=_(CMD_TRIAL), description=_(DESC_TRIAL))
-    @app_commands.describe(match_index=_(ARG_MATCH_INDEX))
+    @app_commands.describe(defendant=_(ARG_MATCH_INDEX))
+    @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     async def trial(self, interaction: discord.Interaction, defendant: discord.Member):
+
         await interaction.response.send_message(f"⚖️ **The court is now in session!**\n{interaction.user.mention} accuses {defendant.mention} of atrocious gameplay.")
 
         await asyncio.sleep(2)
@@ -73,7 +82,7 @@ class GeneralCommands(commands.Cog):
             verdict = self._draw_verdict("guilty_deck", GUILTY_TEMPLATES, user=interaction.user.mention, defendant=defendant.mention)
             color = discord.Color.red()
         else:
-            verdict = self._draw_verdict("plot_twist_deck", PLOT_TWIST_TEMPLATES, user=interaction.user.mention, defendant=defendant.mention)
+            verdict = self._draw_verdict("plot_twist_deck", PLOT_TWIST_TEMPLATES, user=interaction.user.mention,defendant=defendant.mention)
             color = discord.Color.blue()
 
         await spinning_msg.edit(content=None, embed=discord.Embed(title="📜 Final Verdict", description=verdict, color=color))
@@ -81,7 +90,7 @@ class GeneralCommands(commands.Cog):
     # The Confess command
     # What does it do? the victim can plead again
     @app_commands.command(name=_(CMD_CONFESS), description=_(DESC_CONFESS))
-    @app_commands.describe(sin=_(ARG_SIN))
+    @app_commands.describe(crime=_(ARG_SIN))
     async def confess(self, interaction: discord.Interaction, crime: str):
         await interaction.response.send_message(f"🙏 {interaction.user.mention} has approached the stand to confess: **\"{crime}\"**")
 
@@ -101,7 +110,7 @@ class GeneralCommands(commands.Cog):
     # The Link Command
     # This is where it links Riot PUUID to Discord ID, so we can track their games and stats.
     @app_commands.command(name=CMD_LINK, description=DESC_LINK)
-    @app_commands.describe(region=ARG_REGION, riot_id=ARG_RIOT_ID)
+    @app_commands.describe(server=ARG_REGION, full_riot_id=ARG_RIOT_ID)
     @app_commands.checks.cooldown(1, 2, key=lambda i: i.user.id)
     @app_commands.autocomplete(server=server_autocomplete)
     async def link(self, interaction: discord.Interaction, server: str, full_riot_id: str):
