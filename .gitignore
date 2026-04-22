@@ -33,11 +33,15 @@ server_state.db
 data/live/server_state.db
 server_state.db-shm
 server_state.db-wal
+riot_cache.db-shm
+riot_cache.db-wal
+data/live/riot_cache.db-shm
+data/live/riot_cache.db-wal
 data/live/server_state.db-shm
 data/live/server_state.db-wal
 
 # ML and Data files
 # If its over 100mb yeah i can add it to gitignore
-[OLD]convert_data.csv
-data/training/[OLD]convert_data.csv
+[OLD]ranked_drafts.csv
+data/training/[OLD]ranked_drafts.csv
 # models/*.pth
